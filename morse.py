@@ -36,15 +36,35 @@ class MorseCode:
         self.stream.write((volume * samples).tobytes())
         time.sleep(duration)
 
+    def __init__(self):
+        self.morse_dict = {
+            'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....',
+            'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.',
+            'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
+            'Y': '-.--', 'Z': '--..', '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
+            '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '.': '.-.-.-', ',': '--..--',
+            ':': '---...', '=': '-...-', '?': '..--..'
+        }
+        self.inverse_morse_dict = {v: k for k, v in self.morse_dict.items()}
+        self.p = pyaudio.PyAudio()
+        self.stream = self.p.open(format=pyaudio.paFloat32,
+                                  channels=1,
+                                  rate=44100,
+                                  output=True)
+        self.short_beep_duration = 0.1
+        self.long_beep_duration = 0.2
+        self.space_between_words = 0.3
+        self.space_between_characters = 0.05
+
     def play_morse(self, message):
         for char in message:
             if char == '.':
-                self.play_tone(1000, 0.1)  # short beep
+                self.play_tone(1000, self.short_beep_duration)  # short beep
             elif char == '-':
-                self.play_tone(1000, 0.3)  # long beep
+                self.play_tone(1000, self.long_beep_duration)  # long beep
             elif char == ' ':
-                time.sleep(0.4)  # space between words
-            time.sleep(0.1)  # space between characters
+                time.sleep(self.space_between_words)  # space between words
+            time.sleep(self.space_between_characters)  # space between characters
 
     def string_to_morse(self, input_string):
         return ' '.join(self.to_morse(char) for char in input_string if char.upper() in self.morse_dict)
