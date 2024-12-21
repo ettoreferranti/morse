@@ -43,7 +43,7 @@ class MorseCode:
             'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
             'Y': '-.--', 'Z': '--..', '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
             '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '.': '.-.-.-', ',': '--..--',
-            ':': '---...', '=': '-...-', '?': '..--..'
+            ':': '---...', '=': '-...-', '?': '..--..', ' ': ' '
         }
         self.inverse_morse_dict = {v: k for k, v in self.morse_dict.items()}
         self.p = pyaudio.PyAudio()
@@ -51,26 +51,32 @@ class MorseCode:
                                   channels=1,
                                   rate=44100,
                                   output=True)
-        self.short_beep_duration = 0.1
-        self.long_beep_duration = 0.2
-        self.space_between_words = 0.3
-        self.space_between_characters = 0.05
+        multiplier = 0.05
+        self.dit_duration = 1.5 * multiplier
+        self.dah_duration = 3.0 * multiplier
+        self.space_between_words = 4.0 * multiplier
+        self.space_between_characters = 3.0 * multiplier
+        self.space_between_dit_dah = 0.1 * multiplier
 
     def play_morse(self, message):
+        frequency = 600  # Frequency in Hz
         for char in message:
             if char == '.':
-                self.play_tone(1000, self.short_beep_duration)  # short beep
+                self.play_tone(frequency, self.dit_duration)  # short beep
             elif char == '-':
-                self.play_tone(1000, self.long_beep_duration)  # long beep
+                self.play_tone(frequency, self.dah_duration)  # long beep
             elif char == ' ':
                 time.sleep(self.space_between_words)  # space between words
-            time.sleep(self.space_between_characters)  # space between characters
+            elif char == '#':
+                time.sleep(self.space_between_characters)  # space between characters
+            time.sleep(self.space_between_dit_dah)  # space between characters
 
     def string_to_morse(self, input_string):
-        return ' '.join(self.to_morse(char) for char in input_string if char.upper() in self.morse_dict)
+        tmp = '#'.join(self.to_morse(char) for char in input_string if char.upper() in self.morse_dict)
+        return tmp
 
     def morse_to_string(self, morse_string):
-        return ''.join(self.from_morse(code) for code in morse_string.split(' '))
+        return ''.join(self.from_morse(code) for code in morse_string.split('#'))
 
     def __del__(self):
         self.stream.stop_stream()
@@ -79,6 +85,4 @@ class MorseCode:
 
 # Example usage:
 morse = MorseCode()
-print(morse.to_morse('A'))  # Output: .-
-print(morse.from_morse('.-'))  # Output: A
-morse.play_morse(morse.string_to_morse('hello world'))  # Output: Morse code sound
+morse.play_morse(morse.string_to_morse('cq cq cq de HB9IKS'))  # Output: Morse code sound
