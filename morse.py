@@ -57,7 +57,7 @@ class MorseCode:
             'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
             'Y': '-.--', 'Z': '--..', '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
             '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '.': '.-.-.-', ',': '--..--',
-            '?': '..--..', '/': '-..-.', ' ': ' '
+            '?': '..--..', '/': '-..-.'
         }
         self.inverse_morse_dict = {v: k for k, v in self.morse_dict.items()}
         self.p = pyaudio.PyAudio()
@@ -106,7 +106,13 @@ class MorseCode:
             time.sleep(self.space_between_dit_dah)  # space between characters
 
     def string_to_morse(self, input_string):
-        tmp = '#'.join(self.to_morse(char) for char in input_string if char.upper() in self.morse_dict)
+        #tmp = '#'.join(self.to_morse(char) for char in input_string if char.upper() in self.morse_dict)
+        tmp = ''
+        for char in input_string:
+            if char.upper() in self.morse_dict:
+                tmp += self.to_morse(char) + '#'
+            elif char == ' ':
+                tmp += ' '
         return tmp
 
     def morse_to_string(self, morse_string):
@@ -150,5 +156,5 @@ class MorseCode:
 
 # Example usage:
 morse = MorseCode()
-#morse.play_string('cq cq cq de HB9IKS K')  # Output: Morse code sound
-morse.play_times(20)
+morse.play_string('cq cq cq de HB9IKS K')  # Output: Morse code sound
+#morse.play_times(20)
