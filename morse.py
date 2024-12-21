@@ -10,7 +10,7 @@ class MorseCode:
             'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
             'Y': '-.--', 'Z': '--..', '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
             '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '.': '.-.-.-', ',': '--..--',
-            ':': '---...', '=': '-...-', '?': '..--..'
+            ':': '---...', '=': '-...-', '?': '..--..', ' ': ' '
         }
         self.inverse_morse_dict = {v: k for k, v in self.morse_dict.items()}
         self.p = pyaudio.PyAudio()
@@ -18,6 +18,12 @@ class MorseCode:
                                   channels=1,
                                   rate=44100,
                                   output=True)
+        multiplier = 0.05
+        self.dit_duration = 1.5 * multiplier
+        self.dah_duration = 3.0 * multiplier
+        self.space_between_words = 4.0 * multiplier
+        self.space_between_characters = 3.0 * multiplier
+        self.space_between_dit_dah = 0.1 * multiplier
 
     def to_morse(self, char):
         return self.morse_dict.get(char.upper(), '')
@@ -35,28 +41,6 @@ class MorseCode:
         # for paFloat32 sample values must be in range [-1.0, 1.0]
         self.stream.write((volume * samples).tobytes())
         time.sleep(duration)
-
-    def __init__(self):
-        self.morse_dict = {
-            'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....',
-            'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.',
-            'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
-            'Y': '-.--', 'Z': '--..', '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
-            '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '.': '.-.-.-', ',': '--..--',
-            ':': '---...', '=': '-...-', '?': '..--..', ' ': ' '
-        }
-        self.inverse_morse_dict = {v: k for k, v in self.morse_dict.items()}
-        self.p = pyaudio.PyAudio()
-        self.stream = self.p.open(format=pyaudio.paFloat32,
-                                  channels=1,
-                                  rate=44100,
-                                  output=True)
-        multiplier = 0.05
-        self.dit_duration = 1.5 * multiplier
-        self.dah_duration = 3.0 * multiplier
-        self.space_between_words = 4.0 * multiplier
-        self.space_between_characters = 3.0 * multiplier
-        self.space_between_dit_dah = 0.1 * multiplier
 
     def play_morse(self, message):
         frequency = 600  # Frequency in Hz
