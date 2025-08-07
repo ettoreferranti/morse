@@ -50,15 +50,27 @@ class MorseCode:
     __del__():
         Cleans up the audio stream and terminates the PyAudio instance.
     """
-    def __init__(self):
-        self.morse_dict = {
+    def __init__(self, use_letters=True, use_numbers=True, use_punctuation=True):
+        self.morse_dict_letters = {
             'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....',
             'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.',
             'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
-            'Y': '-.--', 'Z': '--..', '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
-            '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '.': '.-.-.-', ',': '--..--',
-            '?': '..--..', '/': '-..-.'
-        }
+            'Y': '-.--', 'Z': '--..'}
+        self.morse_dict_numbers = {
+            '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
+            '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.'}
+        self.morse_dict_punctuation = {
+            '.': '.-.-.-', ',': '--..--', '?': '..--..', '/': '-..-.'}
+        
+        # Select which dictionaries to include
+        self.morse_dict = {}
+        if use_letters:
+            self.morse_dict.update(self.morse_dict_letters)
+        if use_numbers:
+            self.morse_dict.update(self.morse_dict_numbers)
+        if use_punctuation:
+            self.morse_dict.update(self.morse_dict_punctuation)
+        
         self.inverse_morse_dict = {v: k for k, v in self.morse_dict.items()}
         self.p = pyaudio.PyAudio()
         self.stream = self.p.open(format=pyaudio.paFloat32,
@@ -133,26 +145,30 @@ class MorseCode:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             return ch
 
-    def play_random_and_verify(self):
-        random_char = random.choice(list(self.morse_dict.keys()))
-        morse_code = self.to_morse(random_char)
+    def play_random_and_verify(self, length=1):
+        chars = [random.choice(list(self.morse_dict.keys())) for _ in range(length)]
+        random_string = ''.join(chars)
+        morse_code = self.string_to_morse(random_string)
         self.play_morse(morse_code)
 
-        user_input = self.getch().upper()
-        if user_input == random_char:
+        print(f"Enter the {length} character(s) you heard:")
+        user_input = ''
+        while len(user_input) < length:
+            user_input += self.getch().upper()
+        if user_input == random_string:
             print("Correct!")
             return 1
         else:
-            print(f"Incorrect. The correct answer was: {random_char}")
+            print(f"Incorrect. The correct answer was: {random_string}")
             return 0
     
-    def play_times(self, times):
+    def play_times(self, times, length=1):
         score = 0
         for _ in range(times):
-            score += self.play_random_and_verify()
+            score += self.play_random_and_verify(length)
         print(f"Your score: {score}/{times}")
 
 # Example usage:
-morse = MorseCode()
+morse = MorseCode(use_letters=True, use_numbers=False, use_punctuation=False)
 #morse.play_string('cq cq cq de HB9IKS K')  # Output: Morse code sound
-morse.play_times(20)
+morse.play_times(20,4)  # Play random Morse code sequences and verify user input
