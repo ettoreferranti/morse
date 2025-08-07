@@ -65,12 +65,12 @@ class MorseCode:
                                   channels=1,
                                   rate=44100,
                                   output=True)
-        multiplier = 0.05
-        self.dit_duration = 1.5 * multiplier
-        self.dah_duration = 3.0 * multiplier
+        multiplier = 0.06
+        self.dit_duration = 1.2 * multiplier
+        self.dah_duration = 2.5 * multiplier
         self.space_between_words = 4.0 * multiplier
         self.space_between_characters = 3.0 * multiplier
-        self.space_between_dit_dah = 0.1 * multiplier
+        self.space_between_dit_dah = 0.2 * multiplier
 
     def to_morse(self, char):
         return self.morse_dict.get(char.upper(), '')
@@ -137,8 +137,6 @@ class MorseCode:
         random_char = random.choice(list(self.morse_dict.keys()))
         morse_code = self.to_morse(random_char)
         self.play_morse(morse_code)
-        
-        #user_input = input("Enter the character you heard: ").upper()
 
         user_input = self.getch().upper()
         if user_input == random_char:
@@ -156,5 +154,5 @@ class MorseCode:
 
 # Example usage:
 morse = MorseCode()
-morse.play_string('cq cq cq de HB9IKS K')  # Output: Morse code sound
-#morse.play_times(20)
+#morse.play_string('cq cq cq de HB9IKS K')  # Output: Morse code sound
+morse.play_times(20)
