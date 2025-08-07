@@ -5,6 +5,7 @@ import random
 import sys
 import termios
 import tty
+import threading
 
 class MorseCode:
     """
@@ -149,7 +150,7 @@ class MorseCode:
         chars = [random.choice(list(self.morse_dict.keys())) for _ in range(length)]
         random_string = ''.join(chars)
         morse_code = self.string_to_morse(random_string)
-        self.play_morse(morse_code)
+        threading.Thread(target=self.play_morse, args=(morse_code,), daemon=True).start()
 
         print(f"Enter the {length} character(s) you heard:")
         user_input = ''
@@ -171,4 +172,4 @@ class MorseCode:
 # Example usage:
 morse = MorseCode(use_letters=True, use_numbers=False, use_punctuation=False)
 #morse.play_string('cq cq cq de HB9IKS K')  # Output: Morse code sound
-morse.play_times(20,4)  # Play random Morse code sequences and verify user input
+morse.play_times(20,2)  # Play random Morse code sequences and verify user inputs
