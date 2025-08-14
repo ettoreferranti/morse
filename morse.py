@@ -58,11 +58,12 @@ class MorseCode:
             'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
             'Y': '-.--', 'Z': '--..'}
         self.morse_dict_numbers = {
-            '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', 
-            '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.'}
+            '0': '-----', '1': '.----', '2': '..---', '3': '...--',
+            '4': '....-', '5': '.....', '6': '-....', '7': '--...',
+            '8': '---..', '9': '----.'}
         self.morse_dict_punctuation = {
             '.': '.-.-.-', ',': '--..--', '?': '..--..', '/': '-..-.'}
-        
+
         # Select which dictionaries to include
         self.morse_dict = {}
         if use_letters:
@@ -103,7 +104,7 @@ class MorseCode:
         time.sleep(duration)
 
     def play_string(self, message):
-        self.play_morse(morse.string_to_morse(message))
+        self.play_morse(self.string_to_morse(message))
 
     def play_morse(self, message):
         frequency = 600  # Frequency in Hz
@@ -119,7 +120,6 @@ class MorseCode:
             time.sleep(self.space_between_dit_dah)  # space between characters
 
     def string_to_morse(self, input_string):
-        #tmp = '#'.join(self.to_morse(char) for char in input_string if char.upper() in self.morse_dict)
         tmp = ''
         for char in input_string:
             if char.upper() in self.morse_dict:
@@ -162,14 +162,14 @@ class MorseCode:
         else:
             print(f"Incorrect. The correct answer was: {random_string}")
             return 0
-    
+
     def play_times(self, times, length=1):
         score = 0
         for _ in range(times):
             score += self.play_random_and_verify(length)
         print(f"Your score: {score}/{times}")
 
+
 # Example usage:
 morse = MorseCode(use_letters=True, use_numbers=False, use_punctuation=False)
-#morse.play_string('cq cq cq de HB9IKS K')  # Output: Morse code sound
-morse.play_times(20,2)  # Play random Morse code sequences and verify user inputs
+morse.play_times(20, 2)  # Play random Morse code sequences and verify user inputs
