@@ -13,7 +13,8 @@ The application is structured around the `MorseCode` class in `morse.py` which h
 - **Morse Code Dictionaries**: Separate dictionaries for letters, numbers, and punctuation that can be selectively enabled
 - **Audio Engine**: Uses PyAudio and NumPy to generate and play Morse code tones with configurable timing
 - **Interactive Learning**: Multi-threaded system that plays random Morse sequences and captures user input for verification
-- **Configurable Character Sets**: Constructor allows enabling/disabling letters, numbers, and punctuation
+- **External Configuration**: JSON-based configuration system for timing, audio, and security settings
+- **Security Features**: Input validation, resource limits, and comprehensive error handling
 
 Key components:
 - `morse_dict_*`: Character-to-Morse mappings for different character types
@@ -24,9 +25,20 @@ Key components:
 ## Running the Application
 
 ```bash
-# Run the main application (currently configured for 20 rounds of 2-character sequences)
+# Run with default configuration (loaded from config.json)
 python morse.py
 ```
+
+## Configuration
+
+The application uses a `config.json` file for all settings:
+- Timing parameters (dit/dah durations, spacing)
+- Audio settings (frequency, volume, sample rate)  
+- Security limits (input validation, thread limits)
+- Game parameters (rounds, sequence length)
+- Character sets (letters, numbers, punctuation)
+
+See `CONFIG.md` for detailed configuration options.
 
 ## Dependencies
 
@@ -42,14 +54,17 @@ pip install pyaudio numpy
 
 ## Key Methods
 
-- `string_to_morse()`: Converts text to Morse code with '#' as character separator
-- `play_string()`: Plays text as Morse audio
-- `play_random_and_verify()`: Interactive learning method that plays random sequences
-- `play_times()`: Runs multiple learning rounds with scoring
+- `string_to_morse()`: Converts text to Morse code with input validation and length limits
+- `play_string()`: Plays text as Morse audio using configured timing
+- `play_random_and_verify()`: Interactive learning method with timeout handling
+- `play_times()`: Runs multiple learning rounds with comprehensive error handling
+- `reload_config()`: Dynamically reload configuration without restarting
 
-## Current Configuration
+## Default Configuration
 
-The main execution at the bottom runs:
+The application starts with these defaults (from `config.json`):
 - Letters only (no numbers or punctuation)
 - 20 learning rounds
 - 2-character sequences per round
+- 600 Hz audio frequency
+- Comprehensive security limits enabled

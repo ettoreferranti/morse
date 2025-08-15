@@ -1,0 +1,37 @@
+{
+  "audio": {
+    "frequency": 600,
+    "sample_rate": 44100,
+    "volume": 1.0
+  },
+  "timing": {
+    "multiplier": 0.06,
+    "dit_duration_ratio": 1.2,
+    "dah_duration_ratio": 2.5,
+    "space_between_words_ratio": 4.0,
+    "space_between_characters_ratio": 3.0,
+    "space_between_dit_dah_ratio": 0.2,
+    "round_delay": 0.5
+  },
+  "security": {
+    "max_input_length": 1000,
+    "max_threads": 5,
+    "input_timeout": 30,
+    "character_input_timeout": 60,
+    "min_frequency": 50,
+    "max_frequency": 5000,
+    "min_duration": 0.001,
+    "max_duration": 10.0,
+    "max_rounds": 100,
+    "max_sequence_length": 10
+  },
+  "game": {
+    "default_rounds": 20,
+    "default_sequence_length": 2
+  },
+  "character_sets": {
+    "use_letters": true,
+    "use_numbers": false,
+    "use_punctuation": false
+  }
+}
