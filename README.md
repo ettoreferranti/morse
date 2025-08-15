@@ -1,16 +1,18 @@
 # Morse Code Learning Application
 
-A Python-based interactive Morse Code learning tool with audio playback, customizable settings, and comprehensive security features.
+A Python-based interactive Morse Code learning tool with audio playback, customizable settings, and comprehensive security features. Available in both command-line and graphical user interface (GUI) versions.
 
 ## Features
 
 - 🎵 **Audio Morse Code Generation** - Real-time tone generation with PyAudio
+- 🖥️ **Dual Interface** - Command-line and modern GUI versions available
 - 🎓 **Interactive Learning** - Practice with random sequences and get instant feedback
 - ⚙️ **Configurable Settings** - Customize timing, audio, and game parameters via JSON
 - 🔒 **Security Hardened** - Input validation, resource limits, and comprehensive error handling
 - 🎛️ **Character Set Control** - Choose from letters, numbers, and punctuation
 - 🧵 **Multi-threaded Audio** - Non-blocking audio playback during interaction
 - 📊 **Progress Tracking** - Score tracking with accuracy percentages
+- 🔄 **Text Converter** - Built-in text-to-Morse and Morse-to-text conversion
 
 ## Quick Start
 
@@ -29,11 +31,19 @@ cd morse
 
 ### Run the Application
 
+#### GUI Version (Recommended)
+```bash
+python morse_gui.py
+# or
+python run_gui.py
+```
+
+#### Command-Line Version
 ```bash
 python morse.py
 ```
 
-The application will start with default settings:
+Both versions start with default settings:
 - 20 practice rounds
 - 2-character sequences
 - Letters only (A-Z)
@@ -105,6 +115,34 @@ The application uses `config.json` for all settings. You can customize:
 }
 ```
 
+## GUI Features
+
+The graphical user interface provides an intuitive way to use all application features:
+
+### Practice Tab
+- **Interactive Practice Area** - Visual feedback and real-time scoring
+- **Configurable Sessions** - Set rounds, sequence length, and character sets
+- **Progress Tracking** - Live progress bar and detailed results history
+- **Audio Controls** - Play, replay, and stop functionality
+- **Auto-submission** - Automatically advances when sequence is complete
+
+### Configuration Tab
+- **Real-time Settings** - Adjust audio frequency, volume, and timing speed
+- **Visual Sliders** - Easy-to-use controls for all parameters
+- **Configuration Management** - Load, save, and reset configuration files
+- **Live Preview** - See configuration changes in real-time
+
+### Text Converter Tab
+- **Bidirectional Conversion** - Text-to-Morse and Morse-to-text
+- **Audio Playback** - Play any converted Morse code
+- **Large Text Support** - Handle long messages with scrollable text areas
+
+### GUI Benefits
+- **User-Friendly** - No command-line experience required
+- **Visual Feedback** - Clear progress indicators and status messages
+- **Error Handling** - Friendly error messages with helpful suggestions
+- **Multi-tasking** - Non-blocking audio allows continued interaction
+
 ## Usage Examples
 
 ### Basic Usage
@@ -153,6 +191,7 @@ The application includes comprehensive security measures:
 ## Architecture
 
 - **MorseCode Class**: Core functionality with audio generation
+- **GUI Interface**: Modern tkinter-based graphical user interface
 - **Configuration System**: JSON-based external settings
 - **Security Layer**: Input validation and resource management
 - **Audio Engine**: PyAudio integration with NumPy signal generation
@@ -162,7 +201,9 @@ The application includes comprehensive security measures:
 
 ```
 morse/
-├── morse.py          # Main application
+├── morse.py          # Command-line application
+├── morse_gui.py      # GUI application  
+├── run_gui.py        # Simple GUI launcher
 ├── config.json       # Configuration settings
 ├── CONFIG.md         # Configuration documentation
 ├── CLAUDE.md         # Development documentation
@@ -174,6 +215,7 @@ morse/
 - **Python 3.6+**
 - **PyAudio** - Audio playback and streaming
 - **NumPy** - Signal generation and mathematical operations
+- **tkinter** - GUI interface (included with most Python installations)
 - **Built-in modules**: `json`, `threading`, `termios`, `logging`
 
 ## Platform Support
@@ -202,7 +244,12 @@ This project is open source. See the repository for license details.
 - Check system audio permissions
 - Try different audio frequencies in config
 
-### Input Problems
+### GUI Issues
+- Ensure tkinter is installed (usually comes with Python)
+- Check system display settings and permissions
+- Try running `python run_gui.py` for better error reporting
+
+### Input Problems (Command-line)
 - Verify terminal supports raw input mode
 - Check timeout settings in configuration
 - Ensure proper terminal encoding
@@ -211,6 +258,7 @@ This project is open source. See the repository for license details.
 - Validate JSON syntax
 - Check parameter ranges in CONFIG.md
 - Review security logs for validation errors
+- Use GUI Configuration tab for easier setup
 
 ## Development
 
