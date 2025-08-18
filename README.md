@@ -35,7 +35,7 @@ cd morse
 ```bash
 python morse_gui.py
 # or
-python run_gui.py
+python run_morse_gui.py
 ```
 
 #### Command-Line Version
@@ -203,7 +203,7 @@ The application includes comprehensive security measures:
 morse/
 ├── morse.py          # Command-line application
 ├── morse_gui.py      # GUI application  
-├── run_gui.py        # Simple GUI launcher
+├── run_morse_gui.py  # GUI launcher script
 ├── config.json       # Configuration settings
 ├── CONFIG.md         # Configuration documentation
 ├── CLAUDE.md         # Development documentation
@@ -247,7 +247,7 @@ This project is open source. See the repository for license details.
 ### GUI Issues
 - Ensure tkinter is installed (usually comes with Python)
 - Check system display settings and permissions
-- Try running `python run_gui.py` for better error reporting
+- Try running `python run_morse_gui.py` for better error reporting
 
 ### Input Problems (Command-line)
 - Verify terminal supports raw input mode
