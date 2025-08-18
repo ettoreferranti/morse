@@ -32,6 +32,7 @@
   "character_sets": {
     "use_letters": true,
     "use_numbers": false,
-    "use_punctuation": false
+    "use_punctuation": false,
+    "custom_characters": []
   }
 }

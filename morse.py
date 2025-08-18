@@ -10,6 +10,7 @@ import select
 import logging
 import json
 import os
+import re
 
 class MorseCode:
     """
@@ -57,7 +58,7 @@ class MorseCode:
     reload_config():
         Reloads configuration from the config file.
     """
-    def __init__(self, use_letters=None, use_numbers=None, use_punctuation=None, config_file='config.json'):
+    def __init__(self, use_letters=None, use_numbers=None, use_punctuation=None, custom_characters=None, config_file='config.json'):
         # Setup security logging
         logging.basicConfig(level=logging.WARNING, format='%(asctime)s - SECURITY - %(message)s')
         
@@ -71,6 +72,8 @@ class MorseCode:
             self.config['character_sets']['use_numbers'] = use_numbers
         if use_punctuation is not None:
             self.config['character_sets']['use_punctuation'] = use_punctuation
+        if custom_characters is not None:
+            self.config['character_sets']['custom_characters'] = custom_characters
         self.morse_dict_letters = {
             'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....',
             'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.',
@@ -84,13 +87,31 @@ class MorseCode:
             '.': '.-.-.-', ',': '--..--', '?': '..--..', '/': '-..-.'}
 
         # Select which dictionaries to include based on config
-        self.morse_dict = {}
-        if self.config['character_sets']['use_letters']:
-            self.morse_dict.update(self.morse_dict_letters)
-        if self.config['character_sets']['use_numbers']:
-            self.morse_dict.update(self.morse_dict_numbers)
-        if self.config['character_sets']['use_punctuation']:
-            self.morse_dict.update(self.morse_dict_punctuation)
+        custom_chars = self.config['character_sets'].get('custom_characters', [])
+        
+        if custom_chars:
+            # Use custom character set - override other settings
+            self.morse_dict = {}
+            # Create combined dictionary of all possible characters
+            all_chars = {}
+            all_chars.update(self.morse_dict_letters)
+            all_chars.update(self.morse_dict_numbers)
+            all_chars.update(self.morse_dict_punctuation)
+            
+            # Add only the custom characters that exist in our dictionaries
+            for char in custom_chars:
+                char_upper = char.upper()
+                if char_upper in all_chars:
+                    self.morse_dict[char_upper] = all_chars[char_upper]
+        else:
+            # Use regular character sets
+            self.morse_dict = {}
+            if self.config['character_sets'].get('use_letters', False):
+                self.morse_dict.update(self.morse_dict_letters)
+            if self.config['character_sets'].get('use_numbers', False):
+                self.morse_dict.update(self.morse_dict_numbers)
+            if self.config['character_sets'].get('use_punctuation', False):
+                self.morse_dict.update(self.morse_dict_punctuation)
         
         self.inverse_morse_dict = {v: k for k, v in self.morse_dict.items()}
         
@@ -119,6 +140,12 @@ class MorseCode:
     def _load_config(self, config_file):
         """Load configuration from JSON file with validation."""
         try:
+            # Sanitize config file path
+            config_file = self._sanitize_config_path(config_file)
+            if not config_file:
+                logging.warning("Invalid config file path. Using defaults.")
+                return self._get_default_config()
+            
             # Try to load from current directory first
             if os.path.exists(config_file):
                 config_path = config_file
@@ -148,6 +175,45 @@ class MorseCode:
         except Exception as e:
             logging.error(f"Error loading config: {e}")
             return self._get_default_config()
+    
+    def _sanitize_config_path(self, file_path):
+        """Sanitize configuration file path to prevent directory traversal attacks."""
+        try:
+            if not isinstance(file_path, str):
+                return ""
+            
+            # Remove null bytes and control characters
+            file_path = re.sub(r'[\x00-\x1F\x7F]', '', file_path)
+            
+            # Remove or escape dangerous patterns
+            dangerous_patterns = [
+                r'\.\./',  # Directory traversal
+                r'\.\.\\', # Windows directory traversal
+                r'\.\.',   # Any double dot
+                r'[<>:"|?*]',  # Invalid filename characters
+            ]
+            
+            for pattern in dangerous_patterns:
+                file_path = re.sub(pattern, '', file_path)
+            
+            # Only allow specific file extensions
+            allowed_extensions = ['.json', '.txt', '.cfg', '.config']
+            if '.' in file_path:
+                ext = '.' + file_path.split('.')[-1].lower()
+                if ext not in allowed_extensions:
+                    return ""
+            else:
+                # Default to .json if no extension
+                file_path += '.json'
+            
+            # Limit path length
+            if len(file_path) > 255:
+                return ""
+            
+            return file_path.strip()
+            
+        except Exception:
+            return ""
 
     def _get_default_config(self):
         """Return default configuration."""
