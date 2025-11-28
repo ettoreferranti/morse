@@ -7,12 +7,14 @@ A Python-based interactive Morse Code learning tool with audio playback, customi
 - 🎵 **Audio Morse Code Generation** - Real-time tone generation with PyAudio
 - 🖥️ **Dual Interface** - Command-line and modern GUI versions available
 - 🎓 **Interactive Learning** - Practice with random sequences and get instant feedback
+- 📻 **QSO Practice** - Realistic amateur radio contact simulation with intelligent scoring
 - ⚙️ **Configurable Settings** - Customize timing, audio, and game parameters via JSON
 - 🔒 **Security Hardened** - Input validation, resource limits, and comprehensive error handling
 - 🎛️ **Character Set Control** - Choose from letters, numbers, and punctuation
 - 🧵 **Multi-threaded Audio** - Non-blocking audio playback during interaction
 - 📊 **Progress Tracking** - Score tracking with accuracy percentages
 - 🔄 **Text Converter** - Built-in text-to-Morse and Morse-to-text conversion
+- 📖 **Abbreviation Glossary** - Searchable reference for 62 amateur radio abbreviations
 
 ## Quick Start
 
@@ -67,6 +69,14 @@ The application uses `config.json` for all settings. You can customize:
 - **Rounds**: Number of practice rounds (default: 20)
 - **Sequence Length**: Characters per sequence (default: 2)
 - **Character Sets**: Enable letters, numbers, punctuation
+
+### QSO Practice Settings
+- **QSO Count**: Number of QSOs per session (default: 5)
+- **Verbosity**: QSO template verbosity - minimal/medium/chatty (default: medium)
+- **Call Regions**: Optional filters for call sign regions (default: any)
+- **Fuzzy Threshold**: Similarity threshold for partial credit (default: 0.8)
+- **Partial Credit**: Enable partial credit scoring (default: true)
+- **Case Sensitive**: Case-sensitive answer matching (default: false)
 
 ### Security Limits
 - **Input Validation**: Maximum input lengths and timeouts
@@ -142,6 +152,24 @@ The graphical user interface provides an intuitive way to use all application fe
 - **Visual Feedback** - Clear progress indicators and status messages
 - **Error Handling** - Friendly error messages with helpful suggestions
 - **Multi-tasking** - Non-blocking audio allows continued interaction
+
+### QSO Practice Tab
+- **Realistic Amateur Radio Contacts** - Practice copying authentic QSO conversations
+- **Session Configuration** - Customize QSO count, verbosity, and call sign regions
+- **Interactive Transcription** - Fill in callsigns, names, QTHs, RST reports, and equipment details
+- **Intelligent Scoring** - Fuzzy matching with partial credit for close answers
+- **Abbreviation Glossary** - Searchable reference for 62 amateur radio abbreviations
+- **Progress Tracking** - Real-time session progress and cumulative scoring
+- **Audio Controls** - Play, replay, skip, and stop functionality
+- **Multi-Level Practice** - Choose from minimal, medium, or chatty QSO templates
+
+#### QSO Feature Highlights
+- **9 Call Sign Regions** - US, UK, DE, FR, VK, JA, ON, PA, I with realistic formats
+- **62 Abbreviations** - Common amateur radio abbreviations categorized by type
+- **Fuzzy Matching** - Configurable similarity threshold (0.5-1.0) for forgiving scoring
+- **Partial Credit** - Award points for close answers, not just exact matches
+- **Element Tracking** - Track accuracy per element type (callsign, name, QTH, RST, etc.)
+- **Session Statistics** - View overall accuracy and detailed element-by-element performance
 
 ## Usage Examples
 

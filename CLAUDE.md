@@ -4,19 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a Morse Code learning application built in Python. The project provides both command-line and GUI interfaces for learning Morse code through interactive audio-based practice sessions. The application features comprehensive security, configurable settings, and a robust audio engine.
+This is a Morse Code learning application built in Python. The project provides both command-line and GUI interfaces for learning Morse code through interactive audio-based practice sessions. The application features comprehensive security, configurable settings, a robust audio engine, and realistic amateur radio QSO (contact) practice.
 
 ## Project Structure
 
 ```
 morse/
-├── morse.py           # Core MorseCode class and CLI application (main logic)
-├── morse_gui.py       # GUI application using tkinter
-├── run_morse_gui.py   # GUI launcher script with error handling
-├── config.json        # External configuration file
-├── CONFIG.md          # Configuration documentation
-├── CLAUDE.md          # This file (development guidance)
-└── README.md          # User documentation
+├── morse.py                  # Core MorseCode class and CLI application (main logic)
+├── morse_gui.py              # GUI application using tkinter (4 tabs)
+├── run_morse_gui.py          # GUI launcher script with error handling
+├── config.json               # External configuration file
+├── qso_data.py               # QSO data generation and templates (v1.3.0, 1,470 lines)
+├── qso_practice.py           # QSO practice session management (v1.0.0, 550 lines)
+├── qso_scoring.py            # QSO scoring and validation (v1.0.0, 530 lines)
+├── test_*.py                 # Test suites (6 files, 229 passing tests)
+├── CONFIG.md                 # Configuration documentation
+├── CLAUDE.md                 # This file (development guidance)
+├── README.md                 # User documentation
+└── QSO_FEATURE.md            # QSO feature documentation and planning
 ```
 
 ## Architecture
@@ -41,23 +46,48 @@ Key data structures:
 - `active_threads`: List tracking audio playback threads for resource management
 
 #### 2. GUI Application (`morse_gui.py`)
-Tkinter-based graphical interface with three main tabs:
+Tkinter-based graphical interface with four main tabs:
 
 - **Practice Tab**: Interactive learning with visual feedback, progress tracking, and session configuration
-- **Configuration Tab**: Real-time settings adjustment with sliders and save/load functionality
+- **QSO Practice Tab**: Realistic amateur radio contact simulation with transcription, scoring, and session management
+- **Configuration Tab**: Real-time settings adjustment with sliders and save/load functionality (includes QSO settings)
 - **Text Converter Tab**: Bidirectional text/Morse conversion with audio playback
 
 The GUI runs audio playback in separate threads to maintain UI responsiveness.
 
-#### 3. Configuration System (`config.json`)
-Hierarchical JSON configuration with six main sections:
+#### 3. QSO Practice System (Production-Ready)
+Three-module system for realistic amateur radio contact practice:
+
+**qso_data.py** (v1.3.0):
+- **CallSignGenerator**: Generates realistic call signs for 9 regions (US, UK, DE, FR, VK, JA, ON, PA, I)
+- **QSOTemplate**: 9 template variants across 3 verbosity levels (minimal, medium, chatty)
+- **Data Constants**: 62 abbreviations, 38 names, 55 cities, 12 transceivers, 12 antennas, 6 power levels
+- **QSOGenerator**: Coordinates generation with variable substitution and validation
+- Comprehensive input sanitization and security validation
+
+**qso_practice.py** (v1.0.0):
+- **QSOPracticeSession**: Session state machine with 6 states (ready, playing, transcribing, complete, paused, stopped)
+- Thread-safe audio playback integration with MorseCode class
+- Event callback system for GUI integration (state changes, progress updates, playback completion)
+- Session configuration: QSO count (1-100), verbosity, optional region filters, reproducible seeds
+
+**qso_scoring.py** (v1.0.0):
+- **QSOScorer**: Fuzzy matching with configurable similarity threshold (default 0.8, callsigns 0.9)
+- Partial credit system using SequenceMatcher for Levenshtein-like similarity
+- Element-specific scoring: callsigns (strict), RST reports (digit-by-digit), names/QTHs (standard)
+- **SessionScorer**: Cumulative statistics across practice sessions
+- Per-element accuracy tracking and detailed performance metrics
+
+#### 4. Configuration System (`config.json`)
+Hierarchical JSON configuration with seven main sections:
 
 1. **audio**: Frequency (Hz), sample rate, volume
 2. **timing**: Speed multiplier and duration ratios for dits, dahs, and spacing
 3. **security**: Input validation limits, timeouts, resource bounds
 4. **game**: Default practice session parameters
 5. **character_sets**: Boolean flags for letters/numbers/punctuation + custom characters array
-6. All parameters have validated ranges and defaults
+6. **qso**: QSO practice defaults (count, verbosity, regions, fuzzy threshold, partial credit, case sensitivity)
+7. All parameters have validated ranges and defaults
 
 ## Running the Application
 
