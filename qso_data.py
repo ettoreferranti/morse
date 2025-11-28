@@ -1116,10 +1116,357 @@ class QSOTemplate:
 
 
 # ============================================================================
+# QSO GENERATOR INTEGRATION
+# ============================================================================
+
+class QSOGenerator:
+    """
+    Orchestrate complete QSO generation by integrating all components.
+
+    This class combines:
+    - CallSignGenerator: Generate realistic call signs
+    - QSOTemplate: Create QSO exchange templates
+    - Data selection: Random names, cities, equipment, weather
+
+    Produces complete, realistic QSO exchanges ready for Morse code playback.
+
+    Author: Generated with Claude Code
+    Date: 2025-11-28
+    Issue: #5 - QSO Feature: QSO Generator Integration
+    """
+
+    def __init__(self, seed=None):
+        """
+        Initialize the QSO generator.
+
+        Args:
+            seed (int, optional): Random seed for reproducible generation.
+                                 If None, uses system randomness.
+
+        Note: Seeding affects this generator and its component generators
+              for reproducible QSO generation.
+        """
+        import random
+
+        # Store seed for component initialization
+        self.seed = seed
+
+        # Initialize random with seed if provided
+        if seed is not None:
+            random.seed(seed)
+        self.random = random
+
+        # Initialize component generators
+        # Note: Components use the same random module, so seeding above affects them
+        self.call_gen = CallSignGenerator()
+        self.template_gen = QSOTemplate()
+
+        # Logging
+        self.logger = logging.getLogger(__name__)
+
+    def _select_random_name(self):
+        """
+        Select a random operator name.
+
+        Returns:
+            str: Random name from COMMON_NAMES
+        """
+        return self.random.choice(COMMON_NAMES)
+
+    def _select_random_city(self):
+        """
+        Select a random city from all regions.
+
+        Returns:
+            str: Random city from ALL_CITIES
+        """
+        return self.random.choice(ALL_CITIES)
+
+    def _select_random_transceiver(self):
+        """
+        Select a random transceiver.
+
+        Returns:
+            str: Random transceiver from TRANSCEIVERS
+        """
+        return self.random.choice(TRANSCEIVERS)
+
+    def _select_random_antenna(self):
+        """
+        Select a random antenna.
+
+        Returns:
+            str: Random antenna from ANTENNAS
+        """
+        return self.random.choice(ANTENNAS)
+
+    def _select_random_power(self):
+        """
+        Select a random power level.
+
+        Returns:
+            str: Random power level from POWER_LEVELS
+        """
+        return self.random.choice(POWER_LEVELS)
+
+    def _select_random_weather(self):
+        """
+        Select random weather condition.
+
+        Returns:
+            str: Random weather from WEATHER_CONDITIONS
+        """
+        return self.random.choice(WEATHER_CONDITIONS)
+
+    def _select_random_temperature(self):
+        """
+        Select random temperature.
+
+        Returns:
+            str: Random temperature from TEMPERATURES
+        """
+        return self.random.choice(TEMPERATURES)
+
+    def _select_random_rst(self):
+        """
+        Select random RST signal report.
+
+        Returns:
+            str: Random RST from RST_REPORTS
+        """
+        return self.random.choice(RST_REPORTS)
+
+    def generate_station_data(self, call_region=None):
+        """
+        Generate complete data for one station.
+
+        Args:
+            call_region (str, optional): Region for call sign generation.
+                                        If None, randomly selected.
+
+        Returns:
+            dict: Station data with all fields populated
+                {
+                    'callsign': str,
+                    'name': str,
+                    'qth': str,
+                    'rst': str,
+                    'rig': str,
+                    'antenna': str,
+                    'power': str,
+                    'weather': str,
+                    'temperature': str
+                }
+        """
+        station = {
+            'callsign': self.call_gen.generate(call_region),
+            'name': self._select_random_name(),
+            'qth': self._select_random_city(),
+            'rst': self._select_random_rst(),
+            'rig': self._select_random_transceiver(),
+            'antenna': self._select_random_antenna(),
+            'power': self._select_random_power(),
+            'weather': self._select_random_weather(),
+            'temperature': self._select_random_temperature(),
+        }
+
+        self.logger.debug(f"Generated station: {station['callsign']} ({station['name']} in {station['qth']})")
+        return station
+
+    def generate_qso(self, verbosity='medium', call_region1=None, call_region2=None):
+        """
+        Generate a complete QSO exchange.
+
+        Args:
+            verbosity (str): QSO verbosity ('minimal', 'medium', 'chatty')
+            call_region1 (str, optional): Region for calling station
+            call_region2 (str, optional): Region for responding station
+
+        Returns:
+            dict: Complete QSO data structure
+                {
+                    'calling_station': dict,
+                    'responding_station': dict,
+                    'full_text': str,
+                    'verbosity': str,
+                    'template': str,
+                    'elements': dict
+                }
+
+        Raises:
+            ValueError: If invalid verbosity specified
+        """
+        self.logger.info(f"Generating {verbosity} QSO")
+
+        # Generate station data
+        station1 = self.generate_station_data(call_region1)
+        station2 = self.generate_station_data(call_region2)
+
+        # Generate template
+        template = self.template_gen.generate(verbosity)
+
+        # Create variable mapping
+        variables = {
+            'CALL1': station1['callsign'],
+            'CALL2': station2['callsign'],
+            'NAME1': station1['name'],
+            'NAME2': station2['name'],
+            'QTH1': station1['qth'],
+            'QTH2': station2['qth'],
+            'RST1': station1['rst'],
+            'RST2': station2['rst'],
+            'RIG1': station1['rig'],
+            'RIG2': station2['rig'],
+            'ANT1': station1['antenna'],
+            'ANT2': station2['antenna'],
+            'PWR1': station1['power'],
+            'PWR2': station2['power'],
+            'WX1': station1['weather'],
+            'WX2': station2['weather'],
+            'TEMP1': station1['temperature'],
+            'TEMP2': station2['temperature'],
+        }
+
+        # Substitute variables to create full QSO text
+        full_text = self.template_gen.substitute_variables(template, variables)
+
+        # Create elements dictionary for scoring reference
+        elements = {
+            'station1': {
+                'callsign': station1['callsign'],
+                'name': station1['name'],
+                'qth': station1['qth'],
+                'rst': station1['rst'],
+                'rig': station1['rig'],
+                'antenna': station1['antenna'],
+                'power': station1['power'],
+            },
+            'station2': {
+                'callsign': station2['callsign'],
+                'name': station2['name'],
+                'qth': station2['qth'],
+                'rst': station2['rst'],
+                'rig': station2['rig'],
+                'antenna': station2['antenna'],
+                'power': station2['power'],
+            },
+        }
+
+        # Build complete QSO data structure
+        qso = {
+            'calling_station': station1,
+            'responding_station': station2,
+            'full_text': full_text,
+            'verbosity': verbosity,
+            'template': template,
+            'elements': elements,
+        }
+
+        self.logger.info(
+            f"Generated QSO: {station1['callsign']} <-> {station2['callsign']}, "
+            f"verbosity={verbosity}, length={len(full_text)} chars"
+        )
+
+        return qso
+
+    def extract_qso_elements(self, qso):
+        """
+        Extract key elements from a QSO for scoring/validation.
+
+        Args:
+            qso (dict): QSO data structure from generate_qso()
+
+        Returns:
+            dict: Extracted elements for scoring
+                {
+                    'callsigns': [str, str],
+                    'names': [str, str],
+                    'qths': [str, str],
+                    'rsts': [str, str],
+                    'rigs': [str, str],
+                    'antennas': [str, str],
+                    'powers': [str, str]
+                }
+        """
+        return {
+            'callsigns': [
+                qso['calling_station']['callsign'],
+                qso['responding_station']['callsign']
+            ],
+            'names': [
+                qso['calling_station']['name'],
+                qso['responding_station']['name']
+            ],
+            'qths': [
+                qso['calling_station']['qth'],
+                qso['responding_station']['qth']
+            ],
+            'rsts': [
+                qso['calling_station']['rst'],
+                qso['responding_station']['rst']
+            ],
+            'rigs': [
+                qso['calling_station']['rig'],
+                qso['responding_station']['rig']
+            ],
+            'antennas': [
+                qso['calling_station']['antenna'],
+                qso['responding_station']['antenna']
+            ],
+            'powers': [
+                qso['calling_station']['power'],
+                qso['responding_station']['power']
+            ],
+        }
+
+    def get_morse_text(self, qso):
+        """
+        Get QSO text formatted for Morse code conversion.
+
+        This method returns the full_text field which is ready to be
+        passed to MorseCode.string_to_morse().
+
+        Args:
+            qso (dict): QSO data structure from generate_qso()
+
+        Returns:
+            str: QSO text ready for Morse conversion
+        """
+        return qso['full_text']
+
+    def generate_multiple_qsos(self, count=10, verbosity='medium'):
+        """
+        Generate multiple QSO exchanges.
+
+        Args:
+            count (int): Number of QSOs to generate (1-100)
+            verbosity (str): QSO verbosity for all generated QSOs
+
+        Returns:
+            list: List of QSO data structures
+
+        Raises:
+            ValueError: If count out of range
+        """
+        if not isinstance(count, int) or not (1 <= count <= 100):
+            raise ValueError(f"Count must be integer 1-100, got: {count}")
+
+        self.logger.info(f"Generating {count} {verbosity} QSOs")
+
+        qsos = []
+        for i in range(count):
+            qso = self.generate_qso(verbosity=verbosity)
+            qsos.append(qso)
+            self.logger.debug(f"Generated QSO {i+1}/{count}")
+
+        return qsos
+
+
+# ============================================================================
 # MODULE METADATA
 # ============================================================================
 
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 __author__ = 'Generated with Claude Code'
 __date__ = '2025-11-28'
 
@@ -1176,4 +1523,7 @@ __all__ = [
 
     # QSO template system
     'QSOTemplate',
+
+    # QSO generator integration
+    'QSOGenerator',
 ]
