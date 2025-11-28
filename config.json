@@ -34,5 +34,14 @@
     "use_numbers": false,
     "use_punctuation": false,
     "custom_characters": []
+  },
+  "qso": {
+    "default_qso_count": 5,
+    "default_verbosity": "medium",
+    "default_call_region1": null,
+    "default_call_region2": null,
+    "fuzzy_threshold": 0.8,
+    "partial_credit": true,
+    "case_sensitive": false
   }
 }

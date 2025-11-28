@@ -93,6 +93,16 @@ class MorseCodeGUI:
         self.correct_answers = 0
         self.practice_active = False
         self.audio_thread = None
+
+        # Load QSO defaults from config
+        qso_config = self.morse.config.get('qso', {}) if self.morse else {}
+        self.qso_config_count = qso_config.get('default_qso_count', 5)
+        self.qso_config_verbosity = qso_config.get('default_verbosity', 'medium')
+        self.qso_config_region1 = qso_config.get('default_call_region1', None)
+        self.qso_config_region2 = qso_config.get('default_call_region2', None)
+        self.qso_config_fuzzy = qso_config.get('fuzzy_threshold', 0.8)
+        self.qso_config_partial = qso_config.get('partial_credit', True)
+        self.qso_config_case_sensitive = qso_config.get('case_sensitive', False)
         
         # Create GUI elements
         print("Creating GUI widgets...")
@@ -490,7 +500,46 @@ class MorseCodeGUI:
             self.morse.config['timing']['multiplier'], min_val=0.01, max_val=0.2, default=0.06))
         self.speed_scale = ttk.Scale(timing_frame, from_=0.01, to=0.2, variable=self.speed_var, orient=tk.HORIZONTAL)
         self.speed_scale.grid(row=0, column=1, padx=5, pady=2, sticky=tk.EW)
-        
+
+        # QSO Configuration
+        qso_frame = ttk.LabelFrame(self.config_frame, text="QSO Practice Settings")
+        qso_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Default QSO count
+        ttk.Label(qso_frame, text="Default QSO Count:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        qso_config = self.morse.config.get('qso', {})
+        self.qso_count_config_var = tk.IntVar(value=qso_config.get('default_qso_count', 5))
+        ttk.Spinbox(qso_frame, from_=1, to=20, textvariable=self.qso_count_config_var, width=10).grid(row=0, column=1, padx=5, pady=2)
+
+        # Default verbosity
+        ttk.Label(qso_frame, text="Default Verbosity:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
+        self.qso_verbosity_var = tk.StringVar(value=qso_config.get('default_verbosity', 'medium'))
+        ttk.Combobox(qso_frame,
+                    textvariable=self.qso_verbosity_var,
+                    values=['minimal', 'medium', 'chatty'],
+                    state='readonly',
+                    width=12).grid(row=0, column=3, padx=5, pady=2)
+
+        # Fuzzy threshold
+        ttk.Label(qso_frame, text="Fuzzy Threshold:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.qso_fuzzy_var = tk.DoubleVar(value=qso_config.get('fuzzy_threshold', 0.8))
+        ttk.Scale(qso_frame, from_=0.5, to=1.0, variable=self.qso_fuzzy_var, orient=tk.HORIZONTAL).grid(row=1, column=1, padx=5, pady=2, sticky=tk.EW)
+        self.qso_fuzzy_label = ttk.Label(qso_frame, text=f"{self.qso_fuzzy_var.get():.2f}")
+        self.qso_fuzzy_label.grid(row=1, column=2, sticky=tk.W, padx=5, pady=2)
+        self.qso_fuzzy_var.trace('w', lambda *args: self.qso_fuzzy_label.config(text=f"{self.qso_fuzzy_var.get():.2f}"))
+
+        # Partial credit
+        self.qso_partial_var = tk.BooleanVar(value=qso_config.get('partial_credit', True))
+        ttk.Checkbutton(qso_frame,
+                       text="Award partial credit",
+                       variable=self.qso_partial_var).grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
+        # Case sensitive
+        self.qso_case_var = tk.BooleanVar(value=qso_config.get('case_sensitive', False))
+        ttk.Checkbutton(qso_frame,
+                       text="Case sensitive matching",
+                       variable=self.qso_case_var).grid(row=2, column=2, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
         # Configuration Buttons
         config_buttons = ttk.Frame(self.config_frame)
         config_buttons.pack(fill=tk.X, padx=5, pady=10)
@@ -1437,7 +1486,7 @@ class MorseCodeGUI:
             self.morse.config['audio']['volume'] = self.volume_var.get()
             self.morse.audio_frequency = self.freq_var.get()
             self.morse.audio_volume = self.volume_var.get()
-            
+
             # Update timing settings
             multiplier = self.speed_var.get()
             self.morse.config['timing']['multiplier'] = multiplier
@@ -1446,10 +1495,26 @@ class MorseCodeGUI:
             self.morse.space_between_words = self.morse.config['timing']['space_between_words_ratio'] * multiplier
             self.morse.space_between_characters = self.morse.config['timing']['space_between_characters_ratio'] * multiplier
             self.morse.space_between_dit_dah = self.morse.config['timing']['space_between_dit_dah_ratio'] * multiplier
-            
+
+            # Update QSO settings
+            if 'qso' not in self.morse.config:
+                self.morse.config['qso'] = {}
+            self.morse.config['qso']['default_qso_count'] = self.qso_count_config_var.get()
+            self.morse.config['qso']['default_verbosity'] = self.qso_verbosity_var.get()
+            self.morse.config['qso']['fuzzy_threshold'] = self.qso_fuzzy_var.get()
+            self.morse.config['qso']['partial_credit'] = self.qso_partial_var.get()
+            self.morse.config['qso']['case_sensitive'] = self.qso_case_var.get()
+
+            # Update instance QSO config variables
+            self.qso_config_count = self.qso_count_config_var.get()
+            self.qso_config_verbosity = self.qso_verbosity_var.get()
+            self.qso_config_fuzzy = self.qso_fuzzy_var.get()
+            self.qso_config_partial = self.qso_partial_var.get()
+            self.qso_config_case_sensitive = self.qso_case_var.get()
+
             self.update_config_preview()
             messagebox.showinfo("Success", "Configuration applied successfully!")
-            
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to apply configuration: {e}")
             
@@ -1457,15 +1522,23 @@ class MorseCodeGUI:
         """Reset configuration to defaults"""
         try:
             self.morse.config = self.original_config.copy()
-            
+
             # Reset GUI controls
             self.freq_var.set(self.morse.config['audio']['frequency'])
             self.volume_var.set(self.morse.config['audio']['volume'])
             self.speed_var.set(self.morse.config['timing']['multiplier'])
-            
+
+            # Reset QSO settings to defaults
+            qso_config = self.morse.config.get('qso', {})
+            self.qso_count_config_var.set(qso_config.get('default_qso_count', 5))
+            self.qso_verbosity_var.set(qso_config.get('default_verbosity', 'medium'))
+            self.qso_fuzzy_var.set(qso_config.get('fuzzy_threshold', 0.8))
+            self.qso_partial_var.set(qso_config.get('partial_credit', True))
+            self.qso_case_var.set(qso_config.get('case_sensitive', False))
+
             self.apply_config()
             messagebox.showinfo("Success", "Configuration reset to defaults!")
-            
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to reset configuration: {e}")
             
@@ -1476,18 +1549,26 @@ class MorseCodeGUI:
                 title="Load Configuration File",
                 filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
             )
-            
+
             if filename:
                 self.morse.reload_config(filename)
-                
+
                 # Update GUI controls
                 self.freq_var.set(self.morse.config['audio']['frequency'])
                 self.volume_var.set(self.morse.config['audio']['volume'])
                 self.speed_var.set(self.morse.config['timing']['multiplier'])
-                
+
+                # Update QSO settings
+                qso_config = self.morse.config.get('qso', {})
+                self.qso_count_config_var.set(qso_config.get('default_qso_count', 5))
+                self.qso_verbosity_var.set(qso_config.get('default_verbosity', 'medium'))
+                self.qso_fuzzy_var.set(qso_config.get('fuzzy_threshold', 0.8))
+                self.qso_partial_var.set(qso_config.get('partial_credit', True))
+                self.qso_case_var.set(qso_config.get('case_sensitive', False))
+
                 self.update_config_preview()
                 messagebox.showinfo("Success", f"Configuration loaded from {os.path.basename(filename)}")
-                
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load configuration: {e}")
             
