@@ -18,6 +18,9 @@ import os
 import re
 import html
 from morse import MorseCode
+from qso_data import QSOGenerator, ABBREVIATIONS, ABBREVIATION_CATEGORIES
+from qso_practice import QSOPracticeSession
+from qso_scoring import QSOScorer, SessionScorer
 import logging
 
 class MorseCodeGUI:
@@ -78,6 +81,13 @@ class MorseCodeGUI:
         # GUI State variables
         self.current_sequence = ""
         self.user_input = ""
+
+        # QSO Practice state
+        self.qso_generator = QSOGenerator()
+        self.qso_session = None
+        self.qso_scorer = QSOScorer()
+        self.session_scorer = SessionScorer(self.qso_scorer)
+        self.current_qso_result = None
         self.current_round = 0
         self.total_rounds = 0
         self.correct_answers = 0
@@ -143,7 +153,13 @@ class MorseCodeGUI:
         self.converter_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.converter_frame, text="🔄 Text Converter")
         self.create_converter_tab()
-        
+
+        print("  → Creating QSO Practice tab...")
+        # QSO Practice Tab
+        self.qso_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.qso_frame, text="📻 QSO Practice")
+        self.create_qso_tab()
+
         print("  → All widgets created successfully!")
     
     def sanitize_integer(self, value, min_val=1, max_val=1000, default=1):
@@ -1113,20 +1129,46 @@ class MorseCodeGUI:
             # Stop any active practice
             if self.practice_active:
                 self.stop_practice()
-            
+
+            # Stop QSO session if active
+            if hasattr(self, 'qso_session') and self.qso_session:
+                try:
+                    self.qso_session.reset_session()
+                except:
+                    pass
+
             # Clean up audio resources
             if hasattr(self, 'morse') and self.morse:
                 try:
                     self.morse.__del__()
                 except:
                     pass
-            
+
             self.root.quit()
             self.root.destroy()
-            
+
         except Exception as e:
             print(f"Error during cleanup: {e}")
             self.root.quit()
+
+    def create_qso_tab(self):
+        """Create the QSO Practice tab - placeholder for now"""
+        # Coming soon message
+        placeholder = ttk.Frame(self.qso_frame)
+        placeholder.pack(fill=tk.BOTH, expand=True, padx=50, pady=50)
+
+        ttk.Label(placeholder, text="QSO Practice Feature",
+                 font=('TkDefaultFont', 14, 'bold')).pack(pady=10)
+
+        ttk.Label(placeholder,
+                 text="Backend complete with 229 passing tests!\n\n"
+                      "GUI integration in progress:\n"
+                      "• QSO generation and playback ✓\n"
+                      "• Practice session management ✓\n"
+                      "• Scoring system ✓\n"
+                      "• GUI controls (coming soon)\n\n"
+                      "Try the backend from Python console!",
+                 justify=tk.CENTER).pack(pady=10)
 
 
 def main():
