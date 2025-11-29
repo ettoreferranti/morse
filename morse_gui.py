@@ -1089,7 +1089,7 @@ class MorseCodeGUI:
             self.qso_session.start_session()
 
             # Update UI
-            self.qso_play_button.config(text="▶️ Play QSO", command=self.play_current_qso)
+            self.qso_play_button.config(text="▶️ Play QSO", command=self.toggle_qso_playback)
             self.qso_stop_button.config(state=tk.NORMAL)
             self.update_qso_progress()
 
@@ -1100,6 +1100,30 @@ class MorseCodeGUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to start session: {e}")
+
+    def toggle_qso_playback(self):
+        """Toggle between play, pause, and resume"""
+        try:
+            if not self.qso_session:
+                return
+
+            state = self.qso_session.state
+
+            if state in ('ready', 'transcribing'):
+                # Start playing
+                self.play_current_qso()
+                self.qso_play_button.config(text="⏸️ Pause", command=self.toggle_qso_playback)
+            elif state == 'playing':
+                # Pause playback
+                self.qso_session.pause_playback()
+                self.qso_play_button.config(text="▶️ Resume", command=self.toggle_qso_playback)
+            elif state == 'paused':
+                # Resume playback
+                self.qso_session.resume_playback()
+                self.qso_play_button.config(text="⏸️ Pause", command=self.toggle_qso_playback)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to toggle playback: {e}")
 
     def play_current_qso(self):
         """Play the current QSO audio"""
@@ -1120,8 +1144,45 @@ class MorseCodeGUI:
     def replay_qso(self):
         """Replay the current QSO"""
         try:
-            if self.qso_session and self.qso_session.state == 'transcribing':
-                self.qso_session.replay_current_qso()
+            if self.qso_session:
+                # Stop current playback if playing or paused
+                if self.qso_session.state in ('playing', 'paused'):
+                    self.qso_session.stop_playback()
+                    # Wait for playback to actually stop before replaying
+                    self._wait_for_stop_then_replay()
+                elif self.qso_session.state == 'transcribing':
+                    # Replay from transcribing state
+                    self.qso_session.replay_current_qso()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to replay QSO: {e}")
+
+    def _wait_for_stop_then_replay(self, max_attempts=50):
+        """Wait for playback to stop, then replay"""
+        if not self.qso_session:
+            return
+
+        # Check if there's a playback thread and if it's still alive
+        if hasattr(self.qso_session, '_playback_thread') and self.qso_session._playback_thread:
+            if self.qso_session._playback_thread.is_alive():
+                if max_attempts > 0:
+                    # Thread still running, check again in 100ms
+                    self.root.after(100, lambda: self._wait_for_stop_then_replay(max_attempts - 1))
+                else:
+                    # Timeout
+                    messagebox.showwarning("Warning", "Playback thread did not stop in time")
+                    self._do_replay()
+                return
+
+        # Thread is done or doesn't exist, safe to replay
+        self._do_replay()
+
+    def _do_replay(self):
+        """Helper to replay after stopping"""
+        try:
+            if self.qso_session:
+                # Reset state to transcribing so we can play again
+                self.qso_session._update_state('transcribing')
+                self.qso_session.play_current_qso()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to replay QSO: {e}")
 
@@ -1138,6 +1199,16 @@ class MorseCodeGUI:
                     self.append_qso_result("QSO skipped.\n", 'header')
                     self.update_qso_progress()
 
+                    # Reset play button for next QSO
+                    self.qso_play_button.config(text="▶️ Play QSO", command=self.toggle_qso_playback)
+
+                    # Disable transcription buttons until next play
+                    self.qso_replay_button.config(state=tk.DISABLED)
+                    self.qso_skip_button.config(state=tk.DISABLED)
+                    self.qso_submit_button.config(state=tk.DISABLED)
+                    for entry in self.qso_entry_widgets.values():
+                        entry.config(state=tk.DISABLED)
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to skip QSO: {e}")
 
@@ -1146,6 +1217,13 @@ class MorseCodeGUI:
         if messagebox.askyesno("Stop Session", "Are you sure you want to stop this session?"):
             try:
                 if self.qso_session:
+                    # Stop any ongoing playback first
+                    try:
+                        if self.qso_session.state in ('playing', 'paused'):
+                            self.qso_session.stop_playback()
+                    except Exception as e:
+                        logging.warning(f"Error stopping playback: {e}")
+
                     self.qso_session.reset_session()
 
                 # Reset UI
@@ -1171,9 +1249,28 @@ class MorseCodeGUI:
     def submit_qso_answer(self):
         """Submit and score the current answer"""
         try:
-            if not self.qso_session or self.qso_session.state != 'transcribing':
+            if not self.qso_session:
                 return
 
+            # If currently playing or paused, stop playback first then transition to transcribing
+            if self.qso_session.state in ('playing', 'paused'):
+                self.qso_session.stop_playback()
+                # Manually set state to transcribing so submission can proceed
+                self.qso_session._update_state('transcribing')
+                # Wait briefly for playback thread to finish
+                self.root.after(200, self._do_submit_qso_answer)
+                return
+
+            # If in transcribing state, proceed with submission
+            if self.qso_session.state == 'transcribing':
+                self._do_submit_qso_answer()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to submit answer: {e}")
+
+    def _do_submit_qso_answer(self):
+        """Internal method to actually submit the answer"""
+        try:
             # Collect user answers
             user_answers = {key: var.get() for key, var in self.qso_entry_vars.items()}
 
@@ -1280,8 +1377,32 @@ class MorseCodeGUI:
 
     def on_qso_state_change(self, new_state):
         """Callback for session state changes"""
-        # This runs in the main thread via callback
-        pass
+        # Update button text and states based on state
+        if new_state == 'playing':
+            self.qso_play_button.config(text="⏸️ Pause", command=self.toggle_qso_playback)
+            # Enable skip, replay, and submit buttons during playback
+            self.qso_skip_button.config(state=tk.NORMAL)
+            self.qso_replay_button.config(state=tk.NORMAL)
+            self.qso_submit_button.config(state=tk.NORMAL)
+            # Enable entry fields so user can transcribe while listening
+            for entry in self.qso_entry_widgets.values():
+                entry.config(state='normal')
+            self.qso_instructions.config(text="Transcribe the QSO as you listen (submit anytime)")
+        elif new_state == 'paused':
+            self.qso_play_button.config(text="▶️ Resume", command=self.toggle_qso_playback)
+            # Keep skip, replay, and submit buttons enabled while paused
+            self.qso_skip_button.config(state=tk.NORMAL)
+            self.qso_replay_button.config(state=tk.NORMAL)
+            self.qso_submit_button.config(state=tk.NORMAL)
+            # Keep entry fields enabled during pause
+            for entry in self.qso_entry_widgets.values():
+                entry.config(state='normal')
+        elif new_state == 'transcribing':
+            self.qso_play_button.config(text="▶️ Play QSO", command=self.toggle_qso_playback)
+            # Keep entry fields and submit button enabled for transcription
+            self.qso_submit_button.config(state=tk.NORMAL)
+            for entry in self.qso_entry_widgets.values():
+                entry.config(state='normal')
 
     def on_qso_progress_update(self, current, total):
         """Callback for progress updates"""
@@ -1289,18 +1410,17 @@ class MorseCodeGUI:
 
     def on_qso_playback_complete(self):
         """Callback when QSO playback completes"""
-        # Enable transcription
-        for entry in self.qso_entry_widgets.values():
-            entry.config(state=tk.NORMAL)
+        # Entry fields are already enabled (done when playback started)
+        # Just ensure submit button is enabled and update instructions
+        self.qso_submit_button.config(state='normal')
+        self.qso_replay_button.config(state='normal')
+        self.qso_skip_button.config(state='normal')
 
-        self.qso_submit_button.config(state=tk.NORMAL)
-        self.qso_replay_button.config(state=tk.NORMAL)
-        self.qso_skip_button.config(state=tk.NORMAL)
+        self.qso_instructions.config(text="Complete your transcription and submit your answer")
 
-        self.qso_instructions.config(text="Transcribe the QSO and submit your answer")
-
-        # Focus first entry
-        list(self.qso_entry_widgets.values())[0].focus()
+        # Focus first entry if not already focused
+        if not any(entry.focus_get() == entry for entry in self.qso_entry_widgets.values()):
+            list(self.qso_entry_widgets.values())[0].focus()
 
     def start_practice(self):
         """Start a practice session"""

@@ -32,9 +32,19 @@ def main():
         print("Launching Morse Code GUI...")
         print("Close the GUI window to return to this launcher.")
         print("")
-        
+
+        # Check if virtual environment exists
+        venv_python = os.path.join(script_dir, "venv", "bin", "python")
+        if os.path.exists(venv_python):
+            print("Using virtual environment Python...")
+            python_executable = venv_python
+        else:
+            print("Virtual environment not found, using system Python...")
+            print("Note: You may need to run: python3 -m venv venv && venv/bin/pip install pyaudio numpy")
+            python_executable = sys.executable
+
         # Use subprocess to run the GUI
-        result = subprocess.run([sys.executable, "morse_gui.py"], 
+        result = subprocess.run([python_executable, "morse_gui.py"],
                               cwd=script_dir,
                               capture_output=False)
         

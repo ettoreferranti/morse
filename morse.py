@@ -137,6 +137,10 @@ class MorseCode:
         self.audio_frequency = self.config['audio']['frequency']
         self.audio_volume = self.config['audio']['volume']
 
+        # Playback control
+        self.stop_event = None  # Can be set externally to stop playback
+        self.pause_event = None  # Can be set externally to pause playback
+
     def _load_config(self, config_file):
         """Load configuration from JSON file with validation."""
         try:
@@ -313,6 +317,21 @@ class MorseCode:
     def play_morse(self, message):
         frequency = self.audio_frequency  # Frequency from config
         for char in message:
+            # Check if playback should be stopped
+            if self.stop_event and self.stop_event.is_set():
+                break
+
+            # Check if playback should be paused
+            if self.pause_event and self.pause_event.is_set():
+                # Wait until pause is cleared or stop is signaled
+                while self.pause_event.is_set():
+                    if self.stop_event and self.stop_event.is_set():
+                        break
+                    time.sleep(0.1)  # Check every 100ms
+                # If stop was signaled during pause, exit
+                if self.stop_event and self.stop_event.is_set():
+                    break
+
             if char == '.':
                 self.play_tone(frequency, self.dit_duration)  # short beep
             elif char == '-':

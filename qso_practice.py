@@ -218,9 +218,17 @@ class QSOPracticeSession:
             # Get Morse text for current QSO
             morse_text = self.qso_generator.get_morse_text(self.current_qso)
 
+            # Set the stop and pause events for the morse code player
+            self.morse_code.stop_event = self._stop_playback
+            self.morse_code.pause_event = self._pause_playback
+
             # Play the Morse code
             # Note: MorseCode.play_string() handles the actual audio playback
             self.morse_code.play_string(morse_text)
+
+            # Clean up the event references
+            self.morse_code.stop_event = None
+            self.morse_code.pause_event = None
 
             # Mark playback as complete if not stopped
             if not self._stop_playback.is_set():
