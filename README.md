@@ -225,26 +225,79 @@ The application includes comprehensive security measures:
 - **Audio Engine**: PyAudio integration with NumPy signal generation
 - **Interactive System**: Multi-threaded user interaction
 
+## Testing
+
+The application includes a comprehensive automated test suite with 237 tests covering all functionality:
+
+### Running Tests
+
+```bash
+# Run all tests with HTML report
+python run_all_tests.py
+
+# Run only unit tests
+python run_all_tests.py --unit
+
+# Run only GUI tests
+python run_all_tests.py --gui
+
+# Quick test run (no reports)
+python run_all_tests.py --quick
+```
+
+### Test Coverage
+- **237 total tests** - All passing ✅
+- **17 GUI tests** - Widget interactions and state management
+- **16 QSO Practice tests** - State transitions and bug validations
+- **28 Call sign tests** - Format validation for 9 regions
+- **176+ additional tests** - Data generation, scoring, templates
+
+### Test Reports
+After running tests, view:
+- **HTML Test Report**: `test_report_all.html` - Visual pass/fail indicators
+- **Coverage Report**: `htmlcov/index.html` - Line-by-line code coverage
+
+### Test Documentation
+- `TESTING.md` - Comprehensive testing guide
+- `GUI_TESTING.md` - GUI testing specifics
+- `TESTING_SUMMARY.md` - Quick reference
+
 ## File Structure
 
 ```
 morse/
-├── morse.py          # Command-line application
-├── morse_gui.py      # GUI application  
-├── run_morse_gui.py  # GUI launcher script
-├── config.json       # Configuration settings
-├── CONFIG.md         # Configuration documentation
-├── CLAUDE.md         # Development documentation
-└── README.md         # This file
+├── morse.py              # Command-line application
+├── morse_gui.py          # GUI application
+├── run_morse_gui.py      # GUI launcher script
+├── config.json           # Configuration settings
+├── qso_practice.py       # QSO practice session logic
+├── qso_data.py           # QSO data and templates
+├── qso_scoring.py        # Scoring and fuzzy matching
+├── test_*.py             # Test suite (9 files, 237 tests)
+├── run_all_tests.py      # Unified test runner
+├── pytest.ini            # Test configuration
+├── CONFIG.md             # Configuration documentation
+├── TESTING.md            # Testing documentation
+├── GUI_TESTING.md        # GUI testing guide
+├── CLAUDE.md             # Development documentation
+└── README.md             # This file
 ```
 
 ## Dependencies
 
+### Required
 - **Python 3.6+**
 - **PyAudio** - Audio playback and streaming
 - **NumPy** - Signal generation and mathematical operations
 - **tkinter** - GUI interface (included with most Python installations)
-- **Built-in modules**: `json`, `threading`, `termios`, `logging`
+
+### Testing (Optional)
+- **pytest** - Test framework
+- **pytest-html** - HTML test reports
+- **pytest-cov** - Code coverage reports
+
+### Built-in Modules
+- `json`, `threading`, `termios`, `logging`, `unittest`
 
 ## Platform Support
 
