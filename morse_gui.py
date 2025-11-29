@@ -526,7 +526,7 @@ class MorseCodeGUI:
         ttk.Scale(qso_frame, from_=0.5, to=1.0, variable=self.qso_fuzzy_var, orient=tk.HORIZONTAL).grid(row=1, column=1, padx=5, pady=2, sticky=tk.EW)
         self.qso_fuzzy_label = ttk.Label(qso_frame, text=f"{self.qso_fuzzy_var.get():.2f}")
         self.qso_fuzzy_label.grid(row=1, column=2, sticky=tk.W, padx=5, pady=2)
-        self.qso_fuzzy_var.trace('w', lambda *args: self.qso_fuzzy_label.config(text=f"{self.qso_fuzzy_var.get():.2f}"))
+        self.qso_fuzzy_var.trace_add('write', lambda *args: self.qso_fuzzy_label.config(text=f"{self.qso_fuzzy_var.get():.2f}"))
 
         # Partial credit
         self.qso_partial_var = tk.BooleanVar(value=qso_config.get('partial_credit', True))
@@ -939,8 +939,8 @@ class MorseCodeGUI:
         status_label.pack(side=tk.LEFT)
 
         # Bind search updates
-        search_var.trace('w', update_display)
-        category_var.trace('w', update_display)
+        search_var.trace_add('write', update_display)
+        category_var.trace_add('write', update_display)
 
         # Initial display
         update_display()
