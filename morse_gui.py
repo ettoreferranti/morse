@@ -18,6 +18,9 @@ import os
 import re
 import html
 from morse import MorseCode
+from qso_data import QSOGenerator, ABBREVIATIONS, ABBREVIATION_CATEGORIES
+from qso_practice import QSOPracticeSession
+from qso_scoring import QSOScorer, SessionScorer
 import logging
 
 class MorseCodeGUI:
@@ -78,11 +81,28 @@ class MorseCodeGUI:
         # GUI State variables
         self.current_sequence = ""
         self.user_input = ""
+
+        # QSO Practice state
+        self.qso_generator = QSOGenerator()
+        self.qso_session = None
+        self.qso_scorer = QSOScorer()
+        self.session_scorer = SessionScorer(self.qso_scorer)
+        self.current_qso_result = None
         self.current_round = 0
         self.total_rounds = 0
         self.correct_answers = 0
         self.practice_active = False
         self.audio_thread = None
+
+        # Load QSO defaults from config
+        qso_config = self.morse.config.get('qso', {}) if self.morse else {}
+        self.qso_config_count = qso_config.get('default_qso_count', 5)
+        self.qso_config_verbosity = qso_config.get('default_verbosity', 'medium')
+        self.qso_config_region1 = qso_config.get('default_call_region1', None)
+        self.qso_config_region2 = qso_config.get('default_call_region2', None)
+        self.qso_config_fuzzy = qso_config.get('fuzzy_threshold', 0.8)
+        self.qso_config_partial = qso_config.get('partial_credit', True)
+        self.qso_config_case_sensitive = qso_config.get('case_sensitive', False)
         
         # Create GUI elements
         print("Creating GUI widgets...")
@@ -143,7 +163,13 @@ class MorseCodeGUI:
         self.converter_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.converter_frame, text="🔄 Text Converter")
         self.create_converter_tab()
-        
+
+        print("  → Creating QSO Practice tab...")
+        # QSO Practice Tab
+        self.qso_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.qso_frame, text="📻 QSO Practice")
+        self.create_qso_tab()
+
         print("  → All widgets created successfully!")
     
     def sanitize_integer(self, value, min_val=1, max_val=1000, default=1):
@@ -474,7 +500,46 @@ class MorseCodeGUI:
             self.morse.config['timing']['multiplier'], min_val=0.01, max_val=0.2, default=0.06))
         self.speed_scale = ttk.Scale(timing_frame, from_=0.01, to=0.2, variable=self.speed_var, orient=tk.HORIZONTAL)
         self.speed_scale.grid(row=0, column=1, padx=5, pady=2, sticky=tk.EW)
-        
+
+        # QSO Configuration
+        qso_frame = ttk.LabelFrame(self.config_frame, text="QSO Practice Settings")
+        qso_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Default QSO count
+        ttk.Label(qso_frame, text="Default QSO Count:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        qso_config = self.morse.config.get('qso', {})
+        self.qso_count_config_var = tk.IntVar(value=qso_config.get('default_qso_count', 5))
+        ttk.Spinbox(qso_frame, from_=1, to=20, textvariable=self.qso_count_config_var, width=10).grid(row=0, column=1, padx=5, pady=2)
+
+        # Default verbosity
+        ttk.Label(qso_frame, text="Default Verbosity:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
+        self.qso_verbosity_var = tk.StringVar(value=qso_config.get('default_verbosity', 'medium'))
+        ttk.Combobox(qso_frame,
+                    textvariable=self.qso_verbosity_var,
+                    values=['minimal', 'medium', 'chatty'],
+                    state='readonly',
+                    width=12).grid(row=0, column=3, padx=5, pady=2)
+
+        # Fuzzy threshold
+        ttk.Label(qso_frame, text="Fuzzy Threshold:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.qso_fuzzy_var = tk.DoubleVar(value=qso_config.get('fuzzy_threshold', 0.8))
+        ttk.Scale(qso_frame, from_=0.5, to=1.0, variable=self.qso_fuzzy_var, orient=tk.HORIZONTAL).grid(row=1, column=1, padx=5, pady=2, sticky=tk.EW)
+        self.qso_fuzzy_label = ttk.Label(qso_frame, text=f"{self.qso_fuzzy_var.get():.2f}")
+        self.qso_fuzzy_label.grid(row=1, column=2, sticky=tk.W, padx=5, pady=2)
+        self.qso_fuzzy_var.trace_add('write', lambda *args: self.qso_fuzzy_label.config(text=f"{self.qso_fuzzy_var.get():.2f}"))
+
+        # Partial credit
+        self.qso_partial_var = tk.BooleanVar(value=qso_config.get('partial_credit', True))
+        ttk.Checkbutton(qso_frame,
+                       text="Award partial credit",
+                       variable=self.qso_partial_var).grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
+        # Case sensitive
+        self.qso_case_var = tk.BooleanVar(value=qso_config.get('case_sensitive', False))
+        ttk.Checkbutton(qso_frame,
+                       text="Case sensitive matching",
+                       variable=self.qso_case_var).grid(row=2, column=2, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
         # Configuration Buttons
         config_buttons = ttk.Frame(self.config_frame)
         config_buttons.pack(fill=tk.X, padx=5, pady=10)
@@ -766,7 +831,477 @@ class MorseCodeGUI:
         ttk.Button(button_frame, text="Select None", command=select_none).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Apply", command=apply_selection).pack(side=tk.RIGHT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=selector_window.destroy).pack(side=tk.RIGHT, padx=5)
-            
+
+    def show_abbreviation_glossary(self):
+        """Display searchable glossary of amateur radio abbreviations"""
+        glossary_window = tk.Toplevel(self.root)
+        glossary_window.title("Amateur Radio Abbreviations")
+        glossary_window.geometry("700x600")
+        glossary_window.transient(self.root)
+
+        # Header
+        header_frame = ttk.Frame(glossary_window)
+        header_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        ttk.Label(header_frame,
+                 text="Amateur Radio Abbreviations",
+                 font=('TkDefaultFont', 14, 'bold')).pack()
+
+        ttk.Label(header_frame,
+                 text=f"{len(ABBREVIATIONS)} abbreviations used in QSO practice",
+                 font=('TkDefaultFont', 9)).pack()
+
+        # Search bar
+        search_frame = ttk.Frame(glossary_window)
+        search_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=(0, 5))
+        search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_frame, textvariable=search_var, width=30)
+        search_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+        # Category filter
+        ttk.Label(search_frame, text="Category:").pack(side=tk.LEFT, padx=(10, 5))
+        category_var = tk.StringVar(value="All")
+        category_combo = ttk.Combobox(search_frame,
+                                      textvariable=category_var,
+                                      values=["All"] + list(ABBREVIATION_CATEGORIES.keys()),
+                                      state='readonly',
+                                      width=20)
+        category_combo.pack(side=tk.LEFT)
+
+        # Results area with scrollbar
+        results_frame = ttk.Frame(glossary_window)
+        results_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        # Create Treeview for organized display
+        tree_scroll = ttk.Scrollbar(results_frame)
+        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        tree = ttk.Treeview(results_frame,
+                           columns=('Abbr', 'Meaning', 'Category'),
+                           show='headings',
+                           yscrollcommand=tree_scroll.set,
+                           height=20)
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tree_scroll.config(command=tree.yview)
+
+        # Configure columns
+        tree.heading('Abbr', text='Abbreviation')
+        tree.heading('Meaning', text='Meaning')
+        tree.heading('Category', text='Category')
+
+        tree.column('Abbr', width=120, anchor=tk.W)
+        tree.column('Meaning', width=350, anchor=tk.W)
+        tree.column('Category', width=150, anchor=tk.W)
+
+        # Find category for each abbreviation
+        def get_category(abbr):
+            for category, abbrs in ABBREVIATION_CATEGORIES.items():
+                if abbr in abbrs:
+                    return category
+            return "Other"
+
+        # Populate tree
+        def update_display(*args):
+            # Clear tree
+            for item in tree.get_children():
+                tree.delete(item)
+
+            search_text = search_var.get().upper()
+            selected_category = category_var.get()
+
+            # Filter and display abbreviations
+            count = 0
+            for abbr, meaning in sorted(ABBREVIATIONS.items()):
+                category = get_category(abbr)
+
+                # Apply filters
+                if selected_category != "All" and category != selected_category:
+                    continue
+
+                if search_text:
+                    if search_text not in abbr.upper() and search_text not in meaning.upper():
+                        continue
+
+                # Add to tree
+                tree.insert('', tk.END, values=(abbr, meaning, category))
+                count += 1
+
+            # Update status
+            status_label.config(text=f"Showing {count} of {len(ABBREVIATIONS)} abbreviations")
+
+        # Status bar
+        status_frame = ttk.Frame(glossary_window)
+        status_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
+
+        status_label = ttk.Label(status_frame, text="")
+        status_label.pack(side=tk.LEFT)
+
+        # Bind search updates
+        search_var.trace_add('write', update_display)
+        category_var.trace_add('write', update_display)
+
+        # Initial display
+        update_display()
+
+        # Close button
+        button_frame = ttk.Frame(glossary_window)
+        button_frame.pack(fill=tk.X, padx=10, pady=(5, 10))
+
+        ttk.Button(button_frame,
+                  text="Close",
+                  command=glossary_window.destroy).pack(side=tk.RIGHT)
+
+        # Focus on search entry
+        search_entry.focus()
+
+    def configure_qso_session(self):
+        """Show configuration dialog for QSO practice session"""
+        config_window = tk.Toplevel(self.root)
+        config_window.title("QSO Session Configuration")
+        config_window.geometry("500x400")
+        config_window.transient(self.root)
+        config_window.grab_set()
+
+        # Title
+        ttk.Label(config_window,
+                 text="Configure Practice Session",
+                 font=('TkDefaultFont', 12, 'bold')).pack(pady=10)
+
+        # Configuration options frame
+        options_frame = ttk.Frame(config_window, padding="20")
+        options_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Number of QSOs
+        ttk.Label(options_frame, text="Number of QSOs:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        qso_count_var = tk.IntVar(value=getattr(self, 'qso_config_count', 5))
+        qso_count_spin = ttk.Spinbox(options_frame, from_=1, to=20, textvariable=qso_count_var, width=10)
+        qso_count_spin.grid(row=0, column=1, sticky=tk.W, padx=10, pady=5)
+
+        # Verbosity level
+        ttk.Label(options_frame, text="Verbosity:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        verbosity_var = tk.StringVar(value=getattr(self, 'qso_config_verbosity', 'medium'))
+        verbosity_combo = ttk.Combobox(options_frame,
+                                       textvariable=verbosity_var,
+                                       values=['minimal', 'medium', 'chatty'],
+                                       state='readonly',
+                                       width=15)
+        verbosity_combo.grid(row=1, column=1, sticky=tk.W, padx=10, pady=5)
+
+        # Region filters
+        ttk.Label(options_frame, text="Call Region 1:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        region1_var = tk.StringVar(value=getattr(self, 'qso_config_region1', 'Any'))
+        regions = ['Any', 'US', 'UK', 'DE', 'FR', 'VK', 'JA', 'ON', 'PA', 'I']
+        region1_combo = ttk.Combobox(options_frame,
+                                     textvariable=region1_var,
+                                     values=regions,
+                                     state='readonly',
+                                     width=15)
+        region1_combo.grid(row=2, column=1, sticky=tk.W, padx=10, pady=5)
+
+        ttk.Label(options_frame, text="Call Region 2:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        region2_var = tk.StringVar(value=getattr(self, 'qso_config_region2', 'Any'))
+        region2_combo = ttk.Combobox(options_frame,
+                                     textvariable=region2_var,
+                                     values=regions,
+                                     state='readonly',
+                                     width=15)
+        region2_combo.grid(row=3, column=1, sticky=tk.W, padx=10, pady=5)
+
+        # Scoring options
+        ttk.Separator(options_frame, orient='horizontal').grid(row=4, column=0, columnspan=2, sticky=tk.W+tk.E, pady=10)
+
+        ttk.Label(options_frame, text="Fuzzy Threshold:").grid(row=5, column=0, sticky=tk.W, pady=5)
+        fuzzy_var = tk.DoubleVar(value=getattr(self, 'qso_config_fuzzy', 0.8))
+        fuzzy_spin = ttk.Spinbox(options_frame,
+                                 from_=0.5,
+                                 to=1.0,
+                                 increment=0.05,
+                                 textvariable=fuzzy_var,
+                                 width=10,
+                                 format="%.2f")
+        fuzzy_spin.grid(row=5, column=1, sticky=tk.W, padx=10, pady=5)
+
+        partial_credit_var = tk.BooleanVar(value=getattr(self, 'qso_config_partial', True))
+        ttk.Checkbutton(options_frame,
+                       text="Award partial credit for close answers",
+                       variable=partial_credit_var).grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=5)
+
+        # Description
+        desc_frame = ttk.LabelFrame(config_window, text="About", padding="10")
+        desc_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+
+        ttk.Label(desc_frame,
+                 text="Configure your QSO practice session parameters.\n"
+                      "Fuzzy threshold controls how close answers need to be.\n"
+                      "Lower values are more forgiving (0.5 = very lenient, 1.0 = exact match).",
+                 wraplength=450,
+                 justify=tk.LEFT).pack()
+
+        # Buttons
+        button_frame = ttk.Frame(config_window)
+        button_frame.pack(fill=tk.X, padx=20, pady=10)
+
+        def save_and_close():
+            # Save configuration
+            self.qso_config_count = qso_count_var.get()
+            self.qso_config_verbosity = verbosity_var.get()
+            self.qso_config_region1 = None if region1_var.get() == 'Any' else region1_var.get()
+            self.qso_config_region2 = None if region2_var.get() == 'Any' else region2_var.get()
+            self.qso_config_fuzzy = fuzzy_var.get()
+            self.qso_config_partial = partial_credit_var.get()
+            config_window.destroy()
+
+        ttk.Button(button_frame, text="Save", command=save_and_close).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=config_window.destroy).pack(side=tk.RIGHT)
+
+    def start_qso_session(self):
+        """Start a new QSO practice session"""
+        try:
+            # Create new session with configured parameters
+            qso_count = getattr(self, 'qso_config_count', 5)
+            verbosity = getattr(self, 'qso_config_verbosity', 'medium')
+            region1 = getattr(self, 'qso_config_region1', None)
+            region2 = getattr(self, 'qso_config_region2', None)
+
+            # Initialize session
+            self.qso_session = QSOPracticeSession(
+                morse_code=self.morse,
+                qso_count=qso_count,
+                verbosity=verbosity,
+                call_region1=region1,
+                call_region2=region2
+            )
+
+            # Reset scorer with configured parameters
+            fuzzy = getattr(self, 'qso_config_fuzzy', 0.8)
+            partial = getattr(self, 'qso_config_partial', True)
+            self.qso_scorer = QSOScorer(fuzzy_threshold=fuzzy, partial_credit=partial)
+            self.session_scorer = SessionScorer(self.qso_scorer)
+
+            # Setup callbacks
+            self.qso_session.set_state_change_callback(self.on_qso_state_change)
+            self.qso_session.set_progress_update_callback(self.on_qso_progress_update)
+            self.qso_session.set_playback_complete_callback(self.on_qso_playback_complete)
+
+            # Start session
+            self.qso_session.start_session()
+
+            # Update UI
+            self.qso_play_button.config(text="▶️ Play QSO", command=self.play_current_qso)
+            self.qso_stop_button.config(state=tk.NORMAL)
+            self.update_qso_progress()
+
+            # Display initial message
+            self.append_qso_result("Session started!\n", 'header')
+            self.append_qso_result(f"QSOs: {qso_count}, Verbosity: {verbosity}\n")
+            self.append_qso_result("Click 'Play QSO' to begin.\n\n")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to start session: {e}")
+
+    def play_current_qso(self):
+        """Play the current QSO audio"""
+        try:
+            if self.qso_session and self.qso_session.state in ('ready', 'transcribing'):
+                # Clear previous answers
+                self.clear_qso_fields()
+
+                # Update instructions
+                self.qso_instructions.config(text="Listen to the QSO and transcribe...")
+
+                # Play audio
+                self.qso_session.play_current_qso()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to play QSO: {e}")
+
+    def replay_qso(self):
+        """Replay the current QSO"""
+        try:
+            if self.qso_session and self.qso_session.state == 'transcribing':
+                self.qso_session.replay_current_qso()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to replay QSO: {e}")
+
+    def skip_qso(self):
+        """Skip the current QSO"""
+        try:
+            if self.qso_session:
+                self.qso_session.skip_current_qso()
+                self.clear_qso_fields()
+
+                if self.qso_session.state == 'complete':
+                    self.show_session_summary()
+                else:
+                    self.append_qso_result("QSO skipped.\n", 'header')
+                    self.update_qso_progress()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to skip QSO: {e}")
+
+    def stop_qso_session(self):
+        """Stop the current session"""
+        if messagebox.askyesno("Stop Session", "Are you sure you want to stop this session?"):
+            try:
+                if self.qso_session:
+                    self.qso_session.reset_session()
+
+                # Reset UI
+                self.qso_play_button.config(text="▶️ Start Session", command=self.start_qso_session)
+                self.qso_stop_button.config(state=tk.DISABLED)
+                self.qso_replay_button.config(state=tk.DISABLED)
+                self.qso_skip_button.config(state=tk.DISABLED)
+                self.qso_submit_button.config(state=tk.DISABLED)
+                self.qso_progress_label.config(text="No active session")
+                self.qso_score_label.config(text="")
+                self.qso_instructions.config(text="Configure and start a session to begin practice")
+
+                # Disable entry fields
+                for entry in self.qso_entry_widgets.values():
+                    entry.config(state=tk.DISABLED)
+
+                self.clear_qso_fields()
+                self.append_qso_result("\nSession stopped.\n", 'header')
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to stop session: {e}")
+
+    def submit_qso_answer(self):
+        """Submit and score the current answer"""
+        try:
+            if not self.qso_session or self.qso_session.state != 'transcribing':
+                return
+
+            # Collect user answers
+            user_answers = {key: var.get() for key, var in self.qso_entry_vars.items()}
+
+            # Get correct elements
+            correct_elements = self.qso_session.get_current_elements()
+
+            # Score the QSO
+            result = self.qso_scorer.score_qso(user_answers, correct_elements)
+
+            # Add to session scorer
+            self.session_scorer.add_qso_score(result)
+
+            # Display results
+            self.display_qso_results(result)
+
+            # Move to next QSO
+            self.qso_session.next_qso()
+
+            if self.qso_session.state == 'complete':
+                self.show_session_summary()
+            else:
+                self.update_qso_progress()
+                self.clear_qso_fields()
+                self.qso_instructions.config(text="Click 'Play QSO' for the next question")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to submit answer: {e}")
+
+    def clear_qso_fields(self):
+        """Clear all transcription fields"""
+        for var in self.qso_entry_vars.values():
+            var.set('')
+
+    def append_qso_result(self, text, tag=None):
+        """Append text to results area"""
+        self.qso_results_text.config(state=tk.NORMAL)
+        if tag:
+            self.qso_results_text.insert(tk.END, text, tag)
+        else:
+            self.qso_results_text.insert(tk.END, text)
+        self.qso_results_text.see(tk.END)
+        self.qso_results_text.config(state=tk.DISABLED)
+
+    def display_qso_results(self, result):
+        """Display scoring results for a QSO"""
+        self.append_qso_result(f"\n=== QSO Results ===\n", 'header')
+        self.append_qso_result(f"Score: {result['total_score']}/{result['max_score']} ({result['percentage']:.1f}%)\n")
+
+        # Show element-by-element results
+        for key, score_data in result['element_scores'].items():
+            feedback = score_data['feedback']
+            tag = feedback  # Uses our configured tags
+
+            element_name = key.replace('1', ' 1').replace('2', ' 2').title()
+            self.append_qso_result(f"{element_name}: ", None)
+            self.append_qso_result(f"{score_data['answer']}", tag)
+            self.append_qso_result(f" (correct: {score_data['correct']})\n", None)
+
+        self.append_qso_result("\n")
+
+    def show_session_summary(self):
+        """Display session summary"""
+        summary = self.session_scorer.get_session_summary()
+
+        self.append_qso_result("\n" + "=" * 50 + "\n", 'header')
+        self.append_qso_result("SESSION COMPLETE!\n", 'header')
+        self.append_qso_result("=" * 50 + "\n", 'header')
+        self.append_qso_result(f"\nQSOs completed: {summary['qso_count']}\n")
+        self.append_qso_result(f"Total score: {summary['total_score']}/{summary['max_score']}\n")
+        self.append_qso_result(f"Average: {summary['average_percentage']:.1f}%\n\n")
+
+        # Element statistics
+        if 'element_statistics' in summary:
+            stats = summary['element_statistics']
+            if 'overall' in stats:
+                overall = stats['overall']
+                self.append_qso_result("Overall Accuracy:\n", 'header')
+                self.append_qso_result(f"  Correct: {overall['correct']}\n", 'correct')
+                self.append_qso_result(f"  Partial: {overall['partial']}\n", 'partial')
+                self.append_qso_result(f"  Incorrect: {overall['incorrect']}\n", 'incorrect')
+
+        # Reset UI for new session
+        self.qso_play_button.config(text="▶️ Start Session", command=self.start_qso_session)
+        self.qso_stop_button.config(state=tk.DISABLED)
+        self.qso_replay_button.config(state=tk.DISABLED)
+        self.qso_skip_button.config(state=tk.DISABLED)
+        self.qso_submit_button.config(state=tk.DISABLED)
+        self.qso_progress_label.config(text="Session complete")
+
+    def update_qso_progress(self):
+        """Update progress display"""
+        if self.qso_session:
+            progress = self.qso_session.get_progress()
+            self.qso_progress_label.config(
+                text=f"QSO {progress['current'] + 1} of {progress['total']}"
+            )
+
+            # Update score if session scorer has data
+            if self.session_scorer.qso_scores:
+                summary = self.session_scorer.get_session_summary()
+                self.qso_score_label.config(
+                    text=f"Score: {summary['total_score']}/{summary['max_score']} ({summary['average_percentage']:.1f}%)"
+                )
+
+    def on_qso_state_change(self, new_state):
+        """Callback for session state changes"""
+        # This runs in the main thread via callback
+        pass
+
+    def on_qso_progress_update(self, current, total):
+        """Callback for progress updates"""
+        pass
+
+    def on_qso_playback_complete(self):
+        """Callback when QSO playback completes"""
+        # Enable transcription
+        for entry in self.qso_entry_widgets.values():
+            entry.config(state=tk.NORMAL)
+
+        self.qso_submit_button.config(state=tk.NORMAL)
+        self.qso_replay_button.config(state=tk.NORMAL)
+        self.qso_skip_button.config(state=tk.NORMAL)
+
+        self.qso_instructions.config(text="Transcribe the QSO and submit your answer")
+
+        # Focus first entry
+        list(self.qso_entry_widgets.values())[0].focus()
+
     def start_practice(self):
         """Start a practice session"""
         if not self.morse.morse_dict:
@@ -951,7 +1486,7 @@ class MorseCodeGUI:
             self.morse.config['audio']['volume'] = self.volume_var.get()
             self.morse.audio_frequency = self.freq_var.get()
             self.morse.audio_volume = self.volume_var.get()
-            
+
             # Update timing settings
             multiplier = self.speed_var.get()
             self.morse.config['timing']['multiplier'] = multiplier
@@ -960,10 +1495,26 @@ class MorseCodeGUI:
             self.morse.space_between_words = self.morse.config['timing']['space_between_words_ratio'] * multiplier
             self.morse.space_between_characters = self.morse.config['timing']['space_between_characters_ratio'] * multiplier
             self.morse.space_between_dit_dah = self.morse.config['timing']['space_between_dit_dah_ratio'] * multiplier
-            
+
+            # Update QSO settings
+            if 'qso' not in self.morse.config:
+                self.morse.config['qso'] = {}
+            self.morse.config['qso']['default_qso_count'] = self.qso_count_config_var.get()
+            self.morse.config['qso']['default_verbosity'] = self.qso_verbosity_var.get()
+            self.morse.config['qso']['fuzzy_threshold'] = self.qso_fuzzy_var.get()
+            self.morse.config['qso']['partial_credit'] = self.qso_partial_var.get()
+            self.morse.config['qso']['case_sensitive'] = self.qso_case_var.get()
+
+            # Update instance QSO config variables
+            self.qso_config_count = self.qso_count_config_var.get()
+            self.qso_config_verbosity = self.qso_verbosity_var.get()
+            self.qso_config_fuzzy = self.qso_fuzzy_var.get()
+            self.qso_config_partial = self.qso_partial_var.get()
+            self.qso_config_case_sensitive = self.qso_case_var.get()
+
             self.update_config_preview()
             messagebox.showinfo("Success", "Configuration applied successfully!")
-            
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to apply configuration: {e}")
             
@@ -971,15 +1522,23 @@ class MorseCodeGUI:
         """Reset configuration to defaults"""
         try:
             self.morse.config = self.original_config.copy()
-            
+
             # Reset GUI controls
             self.freq_var.set(self.morse.config['audio']['frequency'])
             self.volume_var.set(self.morse.config['audio']['volume'])
             self.speed_var.set(self.morse.config['timing']['multiplier'])
-            
+
+            # Reset QSO settings to defaults
+            qso_config = self.morse.config.get('qso', {})
+            self.qso_count_config_var.set(qso_config.get('default_qso_count', 5))
+            self.qso_verbosity_var.set(qso_config.get('default_verbosity', 'medium'))
+            self.qso_fuzzy_var.set(qso_config.get('fuzzy_threshold', 0.8))
+            self.qso_partial_var.set(qso_config.get('partial_credit', True))
+            self.qso_case_var.set(qso_config.get('case_sensitive', False))
+
             self.apply_config()
             messagebox.showinfo("Success", "Configuration reset to defaults!")
-            
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to reset configuration: {e}")
             
@@ -990,18 +1549,26 @@ class MorseCodeGUI:
                 title="Load Configuration File",
                 filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
             )
-            
+
             if filename:
                 self.morse.reload_config(filename)
-                
+
                 # Update GUI controls
                 self.freq_var.set(self.morse.config['audio']['frequency'])
                 self.volume_var.set(self.morse.config['audio']['volume'])
                 self.speed_var.set(self.morse.config['timing']['multiplier'])
-                
+
+                # Update QSO settings
+                qso_config = self.morse.config.get('qso', {})
+                self.qso_count_config_var.set(qso_config.get('default_qso_count', 5))
+                self.qso_verbosity_var.set(qso_config.get('default_verbosity', 'medium'))
+                self.qso_fuzzy_var.set(qso_config.get('fuzzy_threshold', 0.8))
+                self.qso_partial_var.set(qso_config.get('partial_credit', True))
+                self.qso_case_var.set(qso_config.get('case_sensitive', False))
+
                 self.update_config_preview()
                 messagebox.showinfo("Success", f"Configuration loaded from {os.path.basename(filename)}")
-                
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load configuration: {e}")
             
@@ -1113,20 +1680,206 @@ class MorseCodeGUI:
             # Stop any active practice
             if self.practice_active:
                 self.stop_practice()
-            
+
+            # Stop QSO session if active
+            if hasattr(self, 'qso_session') and self.qso_session:
+                try:
+                    self.qso_session.reset_session()
+                except:
+                    pass
+
             # Clean up audio resources
             if hasattr(self, 'morse') and self.morse:
                 try:
                     self.morse.__del__()
                 except:
                     pass
-            
+
             self.root.quit()
             self.root.destroy()
-            
+
         except Exception as e:
             print(f"Error during cleanup: {e}")
             self.root.quit()
+
+    def create_qso_tab(self):
+        """Create the QSO Practice tab"""
+        # Main container
+        main_container = ttk.Frame(self.qso_frame, padding="10")
+        main_container.pack(fill=tk.BOTH, expand=True)
+
+        # Title
+        title_frame = ttk.Frame(main_container)
+        title_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(title_frame,
+                 text="QSO Practice",
+                 font=('TkDefaultFont', 14, 'bold')).pack(side=tk.LEFT)
+
+        ttk.Button(title_frame,
+                  text="📖 Glossary",
+                  command=self.show_abbreviation_glossary,
+                  width=12).pack(side=tk.RIGHT)
+
+        ttk.Button(title_frame,
+                  text="⚙️ Configure",
+                  command=self.configure_qso_session,
+                  width=12).pack(side=tk.RIGHT, padx=(0, 5))
+
+        # Session info bar
+        info_frame = ttk.LabelFrame(main_container, text="Session", padding="5")
+        info_frame.pack(fill=tk.X, pady=(0, 10))
+
+        self.qso_progress_label = ttk.Label(info_frame, text="No active session")
+        self.qso_progress_label.pack(side=tk.LEFT)
+
+        self.qso_score_label = ttk.Label(info_frame, text="")
+        self.qso_score_label.pack(side=tk.RIGHT)
+
+        # Audio controls
+        audio_frame = ttk.LabelFrame(main_container, text="Audio Controls", padding="10")
+        audio_frame.pack(fill=tk.X, pady=(0, 10))
+
+        self.qso_play_button = ttk.Button(audio_frame,
+                                         text="▶️ Start Session",
+                                         command=self.start_qso_session,
+                                         width=15)
+        self.qso_play_button.pack(side=tk.LEFT, padx=5)
+
+        self.qso_replay_button = ttk.Button(audio_frame,
+                                           text="🔁 Replay",
+                                           command=self.replay_qso,
+                                           state=tk.DISABLED,
+                                           width=15)
+        self.qso_replay_button.pack(side=tk.LEFT, padx=5)
+
+        self.qso_skip_button = ttk.Button(audio_frame,
+                                         text="⏭️ Skip",
+                                         command=self.skip_qso,
+                                         state=tk.DISABLED,
+                                         width=15)
+        self.qso_skip_button.pack(side=tk.LEFT, padx=5)
+
+        self.qso_stop_button = ttk.Button(audio_frame,
+                                         text="⏹️ Stop Session",
+                                         command=self.stop_qso_session,
+                                         state=tk.DISABLED,
+                                         width=15)
+        self.qso_stop_button.pack(side=tk.LEFT, padx=5)
+
+        # Transcription area
+        transcription_frame = ttk.LabelFrame(main_container, text="Transcription", padding="10")
+        transcription_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        # Instructions
+        self.qso_instructions = ttk.Label(transcription_frame,
+                                         text="Configure and start a session to begin practice",
+                                         foreground='gray')
+        self.qso_instructions.pack(pady=5)
+
+        # Create notebook for transcription fields
+        fields_notebook = ttk.Notebook(transcription_frame)
+        fields_notebook.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+
+        # Required fields tab
+        required_frame = ttk.Frame(fields_notebook, padding="10")
+        fields_notebook.add(required_frame, text="Required Fields")
+
+        # Create grid for required fields
+        required_labels = [
+            ("Callsign 1:", 'callsign1'),
+            ("Callsign 2:", 'callsign2'),
+            ("Name 1:", 'name1'),
+            ("Name 2:", 'name2'),
+            ("QTH 1:", 'qth1'),
+            ("QTH 2:", 'qth2'),
+            ("RST 1:", 'rst1'),
+            ("RST 2:", 'rst2')
+        ]
+
+        self.qso_entry_vars = {}
+        self.qso_entry_widgets = {}
+
+        for i, (label, key) in enumerate(required_labels):
+            row = i // 2
+            col = (i % 2) * 2
+
+            ttk.Label(required_frame, text=label).grid(row=row, column=col, sticky=tk.W, padx=5, pady=3)
+            var = tk.StringVar()
+            entry = ttk.Entry(required_frame, textvariable=var, state=tk.DISABLED, width=20)
+            entry.grid(row=row, column=col+1, sticky=tk.W+tk.E, padx=5, pady=3)
+
+            self.qso_entry_vars[key] = var
+            self.qso_entry_widgets[key] = entry
+
+        # Configure grid columns
+        for i in range(4):
+            required_frame.columnconfigure(i, weight=1 if i % 2 == 1 else 0)
+
+        # Optional fields tab
+        optional_frame = ttk.Frame(fields_notebook, padding="10")
+        fields_notebook.add(optional_frame, text="Optional Fields")
+
+        optional_labels = [
+            ("Rig 1:", 'rig1'),
+            ("Rig 2:", 'rig2'),
+            ("Antenna 1:", 'antenna1'),
+            ("Antenna 2:", 'antenna2'),
+            ("Power 1:", 'power1'),
+            ("Power 2:", 'power2')
+        ]
+
+        for i, (label, key) in enumerate(optional_labels):
+            row = i // 2
+            col = (i % 2) * 2
+
+            ttk.Label(optional_frame, text=label).grid(row=row, column=col, sticky=tk.W, padx=5, pady=3)
+            var = tk.StringVar()
+            entry = ttk.Entry(optional_frame, textvariable=var, state=tk.DISABLED, width=20)
+            entry.grid(row=row, column=col+1, sticky=tk.W+tk.E, padx=5, pady=3)
+
+            self.qso_entry_vars[key] = var
+            self.qso_entry_widgets[key] = entry
+
+        # Configure grid columns
+        for i in range(4):
+            optional_frame.columnconfigure(i, weight=1 if i % 2 == 1 else 0)
+
+        # Submit button
+        submit_frame = ttk.Frame(transcription_frame)
+        submit_frame.pack(fill=tk.X, pady=(10, 0))
+
+        self.qso_submit_button = ttk.Button(submit_frame,
+                                           text="✓ Submit Answer",
+                                           command=self.submit_qso_answer,
+                                           state=tk.DISABLED)
+        self.qso_submit_button.pack(side=tk.RIGHT, padx=5)
+
+        ttk.Button(submit_frame,
+                  text="Clear All",
+                  command=self.clear_qso_fields).pack(side=tk.RIGHT, padx=5)
+
+        # Results area
+        results_frame = ttk.LabelFrame(main_container, text="Results", padding="5")
+        results_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Create text widget with scrollbar
+        results_scroll = ttk.Scrollbar(results_frame)
+        results_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.qso_results_text = tk.Text(results_frame,
+                                        height=8,
+                                        wrap=tk.WORD,
+                                        yscrollcommand=results_scroll.set,
+                                        state=tk.DISABLED)
+        self.qso_results_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        results_scroll.config(command=self.qso_results_text.yview)
+
+        # Configure text tags for colored output
+        self.qso_results_text.tag_config('correct', foreground='green')
+        self.qso_results_text.tag_config('partial', foreground='orange')
+        self.qso_results_text.tag_config('incorrect', foreground='red')
+        self.qso_results_text.tag_config('header', font=('TkDefaultFont', 10, 'bold'))
 
 
 def main():

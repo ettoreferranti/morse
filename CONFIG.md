@@ -68,9 +68,34 @@ If no config file is found, the application uses built-in defaults.
 "character_sets": {
   "use_letters": true,      // Include A-Z in practice
   "use_numbers": false,     // Include 0-9 in practice
-  "use_punctuation": false  // Include punctuation marks
+  "use_punctuation": false, // Include punctuation marks
+  "custom_characters": []   // Optional: specify exact characters to use
 }
 ```
+
+### QSO Practice Settings
+```json
+"qso": {
+  "default_qso_count": 5,       // Default number of QSOs per session (1-20)
+  "default_verbosity": "medium", // QSO template verbosity: minimal, medium, or chatty
+  "default_call_region1": null,  // Optional call sign region filter (US, UK, DE, FR, VK, JA, ON, PA, I)
+  "default_call_region2": null,  // Optional second call sign region filter
+  "fuzzy_threshold": 0.8,        // Similarity threshold for partial credit (0.5-1.0)
+  "partial_credit": true,        // Award partial credit for close answers
+  "case_sensitive": false        // Case-sensitive answer matching
+}
+```
+
+**QSO Verbosity Levels**:
+- `minimal`: Short QSOs with required elements only (callsigns, names, QTHs, RSTs)
+- `medium`: Standard QSOs including some equipment details
+- `chatty`: Detailed QSOs with full equipment specs and additional exchanges
+
+**Fuzzy Matching**:
+- `1.0`: Exact match required (no tolerance)
+- `0.9`: Very strict (callsign default - allows minor typos)
+- `0.8`: Standard (general default - forgiving for common mistakes)
+- `0.5`: Very lenient (accepts significantly different answers)
 
 ## Usage Examples
 
